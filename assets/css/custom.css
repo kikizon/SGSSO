@@ -1,0 +1,94 @@
+body {
+    background-color: #f8f9fa;
+}
+.table th, .table td {
+    vertical-align: middle;
+}
+.card-header {
+    font-weight: bold;
+}
+@media (max-width: 576px) {
+    .btn-group-sm > .btn, .btn-sm {
+        padding: 0.25rem 0.4rem;
+        font-size: 0.75rem;
+    }
+}
+
+/* Lightbox Modal - Imagen centrada sobre fondo oscuro */
+.modal-lightbox .modal-content {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+.modal-lightbox .modal-body {
+    padding: 0;
+    text-align: center;
+}
+.modal-lightbox .modal-body img {
+    max-width: 100%;
+    max-height: 90vh;
+    border-radius: 8px;
+    box-shadow: 0 0 30px rgba(0,0,0,0.7);
+    object-fit: contain;
+}
+.modal-lightbox .btn-close {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    background-color: white;
+    opacity: 0.8;
+    border-radius: 50%;
+    padding: 10px;
+    z-index: 1051;
+}
+.modal-lightbox .btn-close:hover {
+    opacity: 1;
+}
+
+/* Spinner de carga global */
+#loading-spinner {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.3);
+    z-index: 9999;
+    display: none;
+    justify-content: center;
+    align-items: center;
+}
+#loading-spinner .spinner-border {
+    width: 4rem;
+    height: 4rem;
+    border-width: 0.4rem;
+}
+
+/* Estilo para el botón de historial */
+.btn-info {
+    color: #fff;
+    background-color: #17a2b8;
+    border-color: #17a2b8;
+}
+.btn-info:hover {
+    background-color: #138496;
+    border-color: #117a8b;
+}
+
+/* Resaltado de filas por gravedad */
+.table-danger {
+    background-color: #f8d7da !important;
+}
+.table-warning {
+    background-color: #fff3cd !important;
+}
+.table-dark {
+    background-color: #212529 !important;
+    color: white !important;
+}
+.table-light {
+    background-color: #f8f9fa !important;
+}
+
+/* Badges para cobertura de cursos */
+.bg-info .card-body { color: white; }
