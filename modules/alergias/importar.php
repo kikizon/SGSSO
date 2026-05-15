@@ -1,0 +1,160 @@
+<?php
+require_once '../../includes/auth.php';
+if ($usuario_rol !== 'admin') {
+    header('Location: ' . BASE_URL . 'modules/dashboard/');
+    exit;
+}
+
+$mensajes = [];
+$errores = [];
+$insertadas = 0;
+$alergias_creadas = 0;
+$omitidas = 0;
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['archivo_csv'])) {
+    $archivo = $_FILES['archivo_csv'];
+
+    if ($archivo['error'] !== UPLOAD_ERR_OK) {
+        $errores[] = 'Error al subir el archivo.';
+    } else {
+        $extension = strtolower(pathinfo($archivo['name'], PATHINFO_EXTENSION));
+        if ($extension !== 'csv') {
+            $errores[] = 'El archivo debe tener extensión .csv';
+        } else {
+            if (($handle = fopen($archivo['tmp_name'], 'r')) !== false) {
+                $linea = fgets($handle);
+                if ($linea === false) {
+                    $errores[] = 'El archivo está vacío.';
+                } else {
+                    if (substr($linea, 0, 3) === "\xEF\xBB\xBF") {
+                        $linea = substr($linea, 3);
+                    }
+                    $encabezados = str_getcsv(trim($linea));
+                    $esperados = ['numero_empleado', 'nombre_empleado', 'alergias'];
+
+                    $encabezados_limpios = array_map('strtolower', array_map('trim', $encabezados));
+
+                    if ($encabezados_limpios !== $esperados) {
+                        $errores[] = 'Encabezados incorrectos. Se esperaba: ' . implode(', ', $esperados);
+                    } else {
+                        $pdo->beginTransaction();
+
+                        while (($fila = fgetcsv($handle, 1000, ',')) !== false) {
+                            if (count($fila) < 3) continue;
+
+                            $numero_empleado = trim($fila[0]);
+                            $nombre_empleado = trim($fila[1]);
+                            $alergias_str = trim($fila[2]);
+
+                            if (empty($numero_empleado) || empty($alergias_str)) {
+                                $omitidas++;
+                                $errores[] = "Fila omitida (datos incompletos): $numero_empleado";
+                                continue;
+                            }
+
+                            $stmt = $pdo->prepare("SELECT id FROM empleados WHERE numero_empleado = ?");
+                            $stmt->execute([$numero_empleado]);
+                            $empleado_id = $stmt->fetchColumn();
+                            if (!$empleado_id) {
+                                $omitidas++;
+                                $errores[] = "Empleado no encontrado: $numero_empleado";
+                                continue;
+                            }
+
+                            $alergias = array_map('trim', explode(',', $alergias_str));
+                            foreach ($alergias as $nombre_alergia) {
+                                if (empty($nombre_alergia)) continue;
+
+                                $stmt = $pdo->prepare("SELECT id FROM alergias WHERE nombre = ?");
+                                $stmt->execute([$nombre_alergia]);
+                                $alergia_id = $stmt->fetchColumn();
+                                if (!$alergia_id) {
+                                    $stmt = $pdo->prepare("INSERT INTO alergias (nombre) VALUES (?)");
+                                    $stmt->execute([$nombre_alergia]);
+                                    $alergia_id = $pdo->lastInsertId();
+                                    $alergias_creadas++;
+                                    $mensajes[] = "Nueva alergia creada: $nombre_alergia";
+                                }
+
+                                $stmt = $pdo->prepare("INSERT IGNORE INTO empleado_alergia (empleado_id, alergia_id) VALUES (?, ?)");
+                                $stmt->execute([$empleado_id, $alergia_id]);
+                                if ($stmt->rowCount() > 0) {
+                                    $insertadas++;
+                                    $mensajes[] = "Asignada: $numero_empleado -> $nombre_alergia";
+                                } else {
+                                    $omitidas++;
+                                    $errores[] = "Relación ya existente: $numero_empleado - $nombre_alergia";
+                                }
+                            }
+                        }
+
+                        $pdo->commit();
+                    }
+                }
+                fclose($handle);
+            } else {
+                $errores[] = 'No se pudo leer el archivo.';
+            }
+        }
+    }
+}
+
+include '../../includes/header.php';
+?>
+
+<h2><i class="fas fa-upload"></i> Importar Alergias de Empleados desde CSV</h2>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">Instrucciones</div>
+            <div class="card-body">
+                <p>El archivo CSV debe tener las siguientes columnas en este orden:</p>
+                <ul>
+                    <li><strong>numero_empleado</strong> (debe existir en el sistema)</li>
+                    <li><strong>nombre_empleado</strong> (solo para referencia, no se valida)</li>
+                    <li><strong>alergias</strong> (lista de alergias separadas por coma)</li>
+                </ul>
+                <p>Si una alergia no existe, se creará automáticamente. Las relaciones ya existentes se ignoran.</p>
+                <a href="plantilla.php" class="btn btn-outline-secondary no-spinner" target="_blank">
+                    <i class="fas fa-download"></i> Descargar Plantilla CSV
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">Subir archivo CSV</div>
+            <div class="card-body">
+                <?php if (!empty($errores)): ?>
+                    <div class="alert alert-warning">
+                        <strong>Advertencias/Errores:</strong>
+                        <ul class="mb-0">
+                            <?php foreach ($errores as $e): ?>
+                                <li><?= htmlspecialchars($e) ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                <?php endif; ?>
+
+                <?php if ($insertadas > 0 || $alergias_creadas > 0): ?>
+                    <div class="alert alert-success">
+                        <strong>Resultado:</strong> 
+                        <?= $insertadas ?> relaciones creadas, <?= $alergias_creadas ?> nuevas alergias, <?= $omitidas ?> omitidas.
+                    </div>
+                <?php endif; ?>
+
+                <form method="post" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="archivo_csv" class="form-label">Seleccione archivo CSV</label>
+                        <input type="file" class="form-control" id="archivo_csv" name="archivo_csv" accept=".csv" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-upload"></i> Importar</button>
+                    <a href="listar.php" class="btn btn-secondary">Cancelar</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<?php include '../../includes/footer.php'; ?>
