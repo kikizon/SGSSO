@@ -1,6 +1,7 @@
 <?php
 require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/image_helper.php';
 
 $tipo_seleccionado = $_GET['tipo'] ?? 'acto_inseguro';
 if (!in_array($tipo_seleccionado, ['acto_inseguro', 'accidente'])) {
@@ -92,6 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
 
                     if (move_uploaded_file($_FILES['evidencias']['tmp_name'][$i], $destino)) {
+                        comprimir_imagen(UPLOAD_DIR . $nombre_archivo);
                         $stmt = $pdo->prepare("INSERT INTO reportes_evidencias (reporte_id, nombre_archivo, tipo) VALUES (?, ?, ?)");
                         $stmt->execute([$reporte_id, $nombre_archivo, $tipo_archivo]);
                         $archivos_subidos++;

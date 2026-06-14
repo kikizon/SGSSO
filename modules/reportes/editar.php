@@ -1,6 +1,7 @@
 <?php
 require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/image_helper.php';
 
 $id = $_GET['id'] ?? 0;
 $stmt = $pdo->prepare("SELECT * FROM reportes WHERE id = ?");
@@ -82,6 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $nombre_archivo = uniqid() . '_' . preg_replace('/[^a-zA-Z0-9.]/', '_', $nombre_original);
                         $destino = UPLOAD_DIR . $nombre_archivo;
                         if (move_uploaded_file($_FILES['evidencias']['tmp_name'][$i], $destino)) {
+                            comprimir_imagen(UPLOAD_DIR . $nombre_archivo);
                             $stmt = $pdo->prepare("INSERT INTO reportes_evidencias (reporte_id, nombre_archivo, tipo) VALUES (?, ?, ?)");
                             $stmt->execute([$id, $nombre_archivo, $tipo_archivo]);
                         }
