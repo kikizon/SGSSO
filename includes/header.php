@@ -72,6 +72,18 @@ $logoExists = file_exists(__DIR__ . '/../' . $logoPath);
                 <?php if ($usuario_rol === 'admin'): ?>
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="fas fa-clipboard-check"></i> 6S
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="<?= BASE_URL ?>modules/auditoria6s/listar.php"><i class="fas fa-list"></i> Auditorías</a></li>
+                        <li><a class="dropdown-item" href="<?= BASE_URL ?>modules/auditoria6s/realizar.php"><i class="fas fa-plus"></i> Nueva auditoría</a></li>
+                        <li><a class="dropdown-item" href="<?= BASE_URL ?>modules/auditoria6s/tendencias.php"><i class="fas fa-chart-line"></i> Tendencias</a></li>
+                        <li><a class="dropdown-item" href="<?= BASE_URL ?>modules/auditoria6s/resumen.php"><i class="fas fa-clipboard-list"></i> Hoja de resumen</a></li>
+                    </ul>
+                </li>
+
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                         <i class="fas fa-database"></i> Catálogos
                     </a>
                     <ul class="dropdown-menu">
@@ -85,6 +97,8 @@ $logoExists = file_exists(__DIR__ . '/../' . $logoPath);
                         <li><a class="dropdown-item" href="<?= BASE_URL ?>modules/enfermedades_cronicas/listar.php"><i class="fas fa-heartbeat"></i> Enfermedades Crónicas</a>
                         <li><a class="dropdown-item" href="<?= BASE_URL ?>modules/alergias/listar.php"><i class="fas fa-allergies"></i> Alergias</a></li></li>
                         <li><a class="dropdown-item" href="<?= BASE_URL ?>modules/cursos/listar.php"><i class="fas fa-chalkboard-teacher"></i> Cursos/Formatos</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="<?= BASE_URL ?>modules/auditoria6s/admin_criterios.php"><i class="fas fa-tasks"></i> Criterios 6S</a></li>
                         <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="<?= BASE_URL ?>modules/auditoria/listar.php"><i class="fas fa-history"></i> Auditoría</a></li>
                         <li><a class="dropdown-item" href="<?= BASE_URL ?>modules/configuracion/listar.php"><i class="fas fa-cog"></i> Configuración</a></li>

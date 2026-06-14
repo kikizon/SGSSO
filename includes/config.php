@@ -3,9 +3,9 @@ session_start();
 date_default_timezone_set('America/Mazatlan');
 
 define('DB_HOST', 'localhost');
-define('DB_NAME', 'supermm_syso');
-define('DB_USER', 'root');
-define('DB_PASS', '');
+define('DB_NAME', 'gpndorbywu_supermm_syso');
+define('DB_USER', 'gpndorbywu_supermm');
+define('DB_PASS', '#Elkiwizon123');
 
 try {
     $pdo = new PDO("mysql:host=".DB_HOST.";dbname=".DB_NAME.";charset=utf8mb4", DB_USER, DB_PASS);
@@ -15,7 +15,7 @@ try {
     die("Error de conexión: " . $e->getMessage());
 }
 
-define('BASE_URL', '/SYSO/');
+define('BASE_URL', '/');
 define('UPLOAD_DIR', __DIR__ . '/../assets/uploads/');
 define('UPLOAD_URL', BASE_URL . 'assets/uploads/');
 
