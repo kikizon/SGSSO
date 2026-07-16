@@ -1,20 +1,89 @@
 <?php
 require_once '../../includes/auth.php';
+require_once '../../includes/functions.php';
+require_once '../../includes/authorization.php';
 if ($usuario_rol !== 'admin') {
     header('Location: ' . BASE_URL . 'modules/dashboard/');
     exit;
 }
 
-$usuarios = $pdo->query("SELECT u.id, u.nombre_completo, u.email, u.rol, u.activo, u.debe_cambiar_password, s.nombre as sucursal 
-                         FROM usuarios u 
-                         LEFT JOIN sucursales s ON u.sucursal_id = s.id 
+$usuarios = $pdo->query("SELECT u.id, u.nombre_completo, u.email, u.rol, u.activo, u.debe_cambiar_password, s.nombre as sucursal
+                         FROM usuarios u
+                         LEFT JOIN sucursales s ON u.sucursal_id = s.id
                          ORDER BY u.nombre_completo")->fetchAll();
+
+$pendientes = autz_contar_pendientes($pdo);
 
 include '../../includes/header.php';
 ?>
 
 <h2><i class="fas fa-user-cog"></i> Gestión de Usuarios</h2>
-<a href="crear.php" class="btn btn-primary mb-3"><i class="fas fa-plus"></i> Nuevo Usuario</a>
+
+<div class="d-flex gap-2 mb-3">
+  <a href="crear.php" class="btn btn-primary"><i class="fas fa-plus"></i> Nuevo Usuario</a>
+  <a href="<?= BASE_URL ?>modules/autorizaciones/listar.php" class="btn btn-outline-secondary">
+    <i class="fas fa-user-shield"></i> Autorizaciones
+    <?php if ($pendientes > 0): ?><span class="badge bg-danger"><?= $pendientes ?></span><?php endif; ?>
+  </a>
+  <button class="btn btn-outline-info ms-auto" type="button" data-bs-toggle="collapse" data-bs-target="#panelPermisos">
+    <i class="fas fa-shield-alt"></i> Ver permisos por rol
+  </button>
+</div>
+
+<!-- ============================================================
+     MATRIZ DE PERMISOS POR ROL (derivada del comportamiento real)
+     ============================================================ -->
+<div class="collapse mb-4" id="panelPermisos">
+  <div class="card">
+    <div class="card-header bg-light"><i class="fas fa-shield-alt"></i> ¿Qué puede hacer cada rol?</div>
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-2">
+          <thead>
+            <tr>
+              <th style="min-width:220px">Acción</th>
+              <th class="text-center"><span class="badge bg-danger">Administrador</span></th>
+              <th class="text-center"><span class="badge bg-warning text-dark">Supervisor</span></th>
+              <th class="text-center"><span class="badge bg-secondary">Usuario</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php
+            $si  = '<span class="text-success fw-bold">Sí</span>';
+            $no  = '<span class="text-danger">No</span>';
+            $suc = '<span class="text-primary">Su sucursal</span>';
+            $aut = '<span class="text-warning">Con autorización</span>';
+            $rows = [
+              ['Ver dashboards',                 $si,  $suc, $suc],
+              ['Crear reportes (actos/accidentes)', $si, $suc, $suc],
+              ['Editar / eliminar reportes',     $si,  $aut, $aut],
+              ['Realizar auditorías 6S',         $si,  $suc, $suc],
+              ['Editar / eliminar auditorías 6S',$si,  $aut, $aut],
+              ['Gestionar catálogos (deptos, sucursales, etc.)', $si, $no, $no],
+              ['Editar / eliminar en catálogos', $si,  $no,  $no],
+              ['Gestionar usuarios',             $si,  $no,  $no],
+              ['Configuración del sistema',      $si,  $no,  $no],
+              ['Aprobar / rechazar solicitudes', $si,  $no,  $no],
+            ];
+            foreach ($rows as $r): ?>
+              <tr>
+                <td><?= $r[0] ?></td>
+                <td class="text-center"><?= $r[1] ?></td>
+                <td class="text-center"><?= $r[2] ?></td>
+                <td class="text-center"><?= $r[3] ?></td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+      <p class="text-muted small mb-0">
+        <strong>Con autorización</strong>: la acción genera una solicitud que un <strong>Administrador</strong> debe aprobar
+        antes de aplicarse (doble autorización). <strong>Su sucursal</strong>: el rol solo ve y actúa sobre registros de la
+        sucursal que tiene asignada.
+      </p>
+    </div>
+  </div>
+</div>
 
 <div class="table-responsive">
     <table class="table table-striped">

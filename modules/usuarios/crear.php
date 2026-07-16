@@ -19,12 +19,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $activo = isset($_POST['activo']) ? 1 : 0;
     $debe_cambiar = isset($_POST['debe_cambiar_password']) ? 1 : 0;
 
+    // Normalizar sucursal: '' -> null; admin nunca lleva sucursal
+    $sucursal_id = ($sucursal_id === '' || $sucursal_id === null) ? null : (int)$sucursal_id;
+    if ($rol === 'admin') { $sucursal_id = null; }
+
     if (!$nombre || !$email || !$password) {
         $error = 'Todos los campos obligatorios deben completarse.';
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error = 'Email no válido.';
+    } elseif ($rol !== 'admin' && !$sucursal_id) {
+        $error = 'Debe asignar una sucursal a usuarios y supervisores.';
     } else {
-        if ($rol === 'admin') $sucursal_id = null;
         $hash = password_hash($password, PASSWORD_DEFAULT);
         $stmt = $pdo->prepare("INSERT INTO usuarios (nombre_completo, email, password_hash, rol, sucursal_id, activo, debe_cambiar_password, ultimo_cambio_password) 
                                VALUES (?, ?, ?, ?, ?, ?, ?, NOW())");
@@ -109,15 +114,15 @@ function toggleSucursal() {
     const div = document.getElementById('div_sucursal');
     const select = document.getElementById('sucursal_id');
     const req = document.getElementById('sucursal_required');
-    if (rol === 'supervisor') {
-        div.style.display = 'block';
-        select.required = true;
-        req.style.display = 'inline';
-    } else {
+    if (rol === 'admin') {
         div.style.display = 'none';
         select.required = false;
         select.value = '';
         req.style.display = 'none';
+    } else {
+        div.style.display = 'block';
+        select.required = true;
+        req.style.display = 'inline';
     }
 }
 document.addEventListener('DOMContentLoaded', toggleSucursal);

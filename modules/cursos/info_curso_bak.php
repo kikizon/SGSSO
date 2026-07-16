@@ -38,12 +38,6 @@ if (!empty($buscar)) {
     $paramsBase[] = "%$buscar%";
 }
 
-// Multisucursal: no-admin solo su sucursal
-if ($usuario_rol !== 'admin') {
-    $whereEmpleados[] = "e.sucursal_id = ?";
-    $paramsBase[] = $usuario_sucursal_id;
-}
-
 $whereSQL = '';
 if (!empty($whereEmpleados)) {
     $whereSQL = ' AND ' . implode(' AND ', $whereEmpleados);
@@ -58,113 +52,42 @@ if (!$curso) {
     exit;
 }
 
-// Alcance del curso (curso_asignaciones): define quiénes están REQUERIDOS
-$asignaciones = $pdo->prepare("SELECT * FROM curso_asignaciones WHERE curso_id = ?");
-$asignaciones->execute([$curso_id]);
-$asigs = $asignaciones->fetchAll();
-$tipo_asignacion = $asigs[0]['tipo_asignacion'] ?? 'todos';
-$entidades_asignadas = array_column($asigs, 'entidad_id');
-
-if ($tipo_asignacion === 'todos') {
-    $condicionDeben = '1=1';
-} elseif ($tipo_asignacion === 'sucursal') {
-    $ids = implode(',', array_map('intval', $entidades_asignadas));
-    $condicionDeben = $ids !== '' ? "e.sucursal_id IN ($ids)" : '0=1';
-} elseif ($tipo_asignacion === 'departamento') {
-    $ids = implode(',', array_map('intval', $entidades_asignadas));
-    $condicionDeben = $ids !== '' ? "e.departamento_id IN ($ids)" : '0=1';
-} elseif ($tipo_asignacion === 'excepto_empleado') {
-    $ids = implode(',', array_map('intval', array_filter($entidades_asignadas, fn($v) => $v !== null)));
-    $condicionDeben = $ids !== '' ? "e.id NOT IN ($ids)" : '1=1';
-} else {
-    $ids = implode(',', array_map('intval', $entidades_asignadas));
-    $condicionDeben = $ids !== '' ? "e.id IN ($ids)" : '0=1';
-}
-
-// Empleados que YA tomaron el curso (con marca de requerido)
+// Empleados que YA tomaron el curso
 $paramsTomaron = array_merge([$curso_id], $paramsBase);
-$sqlTomaron = "SELECT e.id, e.numero_empleado, e.nombre, d.nombre as departamento, s.nombre as sucursal, MAX(ec.fecha_realizacion) as ultima_fecha,
-                      ($condicionDeben) as requerido
+$sqlTomaron = "SELECT e.id, e.numero_empleado, e.nombre, d.nombre as departamento, s.nombre as sucursal, MAX(ec.fecha_realizacion) as ultima_fecha
                FROM empleado_curso ec
                JOIN empleados e ON ec.empleado_id = e.id
                JOIN departamentos d ON e.departamento_id = d.id
                JOIN sucursales s ON e.sucursal_id = s.id
                WHERE ec.curso_id = ? $whereSQL
                GROUP BY e.id
-               ORDER BY requerido DESC, e.nombre";
+               ORDER BY e.nombre";
 $stmtTomaron = $pdo->prepare($sqlTomaron);
 $stmtTomaron->execute($paramsTomaron);
 $tomaron = $stmtTomaron->fetchAll();
 
-// Empleados que NO han tomado el curso (con marca de requerido)
+// Empleados que NO han tomado el curso
 $paramsNoTomaron = array_merge([$curso_id], $paramsBase);
-$sqlNoTomaron = "SELECT e.id, e.numero_empleado, e.nombre, d.nombre as departamento, s.nombre as sucursal,
-                        ($condicionDeben) as requerido
+$sqlNoTomaron = "SELECT e.id, e.numero_empleado, e.nombre, d.nombre as departamento, s.nombre as sucursal
                  FROM empleados e
                  JOIN departamentos d ON e.departamento_id = d.id
                  JOIN sucursales s ON e.sucursal_id = s.id
                  WHERE e.id NOT IN (SELECT empleado_id FROM empleado_curso WHERE curso_id = ?) $whereSQL
-                 ORDER BY requerido DESC, e.nombre";
+                 ORDER BY e.nombre";
 $stmtNoTomaron = $pdo->prepare($sqlNoTomaron);
 $stmtNoTomaron->execute($paramsNoTomaron);
 $noTomaron = $stmtNoTomaron->fetchAll();
 
-// ESTADÍSTICAS REALES: solo sobre los empleados dentro del alcance del curso
-$sqlTotal = "SELECT COUNT(*) FROM empleados e WHERE ($condicionDeben)";
+// Total de empleados filtrados (CORREGIDO: construcción sin doble 'AND')
+$sqlTotal = "SELECT COUNT(*) FROM empleados e WHERE 1=1";
 if (!empty($whereEmpleados)) {
     $sqlTotal .= ' AND ' . implode(' AND ', $whereEmpleados);
 }
 $stmtTotal = $pdo->prepare($sqlTotal);
 $stmtTotal->execute($paramsBase);
-$totalAlcance = (int)$stmtTotal->fetchColumn();
+$totalEmpleadosFiltrados = $stmtTotal->fetchColumn();
 
-$tomaronAlcance = count(array_filter($tomaron, fn($e) => $e['requerido']));
-$noTomaronAlcance = count(array_filter($noTomaron, fn($e) => $e['requerido']));
-$tomaronExtras = count($tomaron) - $tomaronAlcance;
-
-// --- Vigencia del curso ---
-$vigencia_meses = isset($curso['vigencia_meses']) && $curso['vigencia_meses'] !== null ? (int)$curso['vigencia_meses'] : null;
-$aviso_dias = 30;
-try {
-    $cfg = $pdo->prepare("SELECT valor FROM configuracion WHERE clave = 'cursos_aviso_vencimiento_dias'");
-    $cfg->execute();
-    $v = $cfg->fetchColumn();
-    if ($v !== false && (int)$v > 0) $aviso_dias = (int)$v;
-} catch (Exception $e) { /* usa default */ }
-
-$hoy = new DateTime('today');
-$vigentes = 0; $porVencer = 0; $vencidos = 0;
-foreach ($tomaron as $i => $e) {
-    $estadoVig = 'sin_vigencia'; // curso que no vence
-    $fv = null;
-    if ($vigencia_meses !== null && !empty($e['ultima_fecha'])) {
-        $fv = (new DateTime($e['ultima_fecha']))->modify("+{$vigencia_meses} months");
-        if ($fv < $hoy) {
-            $estadoVig = 'vencido';
-        } elseif ((clone $hoy)->modify("+{$aviso_dias} days") >= $fv) {
-            $estadoVig = 'por_vencer';
-        } else {
-            $estadoVig = 'vigente';
-        }
-    }
-    $tomaron[$i]['estado_vigencia'] = $estadoVig;
-    $tomaron[$i]['fecha_vencimiento'] = $fv ? $fv->format('Y-m-d') : null;
-    if ($e['requerido']) {
-        if ($estadoVig === 'vencido') $vencidos++;
-        elseif ($estadoVig === 'por_vencer') { $porVencer++; $vigentes++; }
-        elseif ($estadoVig === 'vigente' || $estadoVig === 'sin_vigencia') $vigentes++;
-    }
-}
-
-// Cobertura real: vigentes (incluye por vencer; excluye vencidos) / alcance
-$porcentajeCobertura = $totalAlcance > 0 ? round(($vigentes / $totalAlcance) * 100, 1) : 0;
-
-$etiquetaAlcance = [
-    'todos' => 'Todos los empleados',
-    'sucursal' => 'Sucursales específicas',
-    'departamento' => 'Departamentos específicos',
-    'empleado' => 'Empleados específicos',
-][$tipo_asignacion] ?? $tipo_asignacion;
+$porcentajeCobertura = $totalEmpleadosFiltrados > 0 ? round((count($tomaron) / $totalEmpleadosFiltrados) * 100, 1) : 0;
 
 // Catálogos para filtros
 $sucursales = $pdo->query("SELECT id, nombre FROM sucursales WHERE activo = 1 ORDER BY nombre")->fetchAll();
@@ -176,62 +99,36 @@ $departamentos = $pdo->query("SELECT id, nombre FROM departamentos WHERE activo 
     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
 </div>
 <div class="modal-body">
-    <div class="alert alert-light border py-2 mb-3">
-        <i class="fas fa-bullseye"></i> <strong>Alcance:</strong> <?= htmlspecialchars($etiquetaAlcance) ?>.
-        Las estadísticas se calculan únicamente sobre los <strong><?= $totalAlcance ?></strong> empleado(s) requeridos por este curso/formato.
-        <?php if ($vigencia_meses !== null): ?>
-            · <i class="fas fa-hourglass-half"></i> <strong>Vigencia:</strong> <?= $vigencia_meses ?> mes(es) (aviso <?= $aviso_dias ?> días antes).
-        <?php else: ?>
-            · <i class="fas fa-infinity"></i> Este curso/formato <strong>no vence</strong>.
-        <?php endif; ?>
-    </div>
-    <div class="row mb-3 g-2">
-        <div class="col-6 col-md-2">
-            <div class="card bg-primary text-white h-100">
-                <div class="card-body text-center p-2">
-                    <h6 class="small">En alcance</h6>
-                    <h3 class="mb-0"><?= $totalAlcance ?></h3>
+    <div class="row mb-3">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body text-center">
+                    <h6>Total Empleados</h6>
+                    <h3><?= $totalEmpleadosFiltrados ?></h3>
                 </div>
             </div>
         </div>
-        <div class="col-6 col-md-2">
-            <div class="card bg-success text-white h-100">
-                <div class="card-body text-center p-2">
-                    <h6 class="small">Vigentes</h6>
-                    <h3 class="mb-0"><?= $vigentes ?></h3>
-                    <?php if ($tomaronExtras > 0): ?><small>+<?= $tomaronExtras ?> fuera de alcance</small><?php endif; ?>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <h6>Han tomado el curso/formato</h6>
+                    <h3><?= count($tomaron) ?></h3>
                 </div>
             </div>
         </div>
-        <div class="col-6 col-md-2">
-            <div class="card bg-warning text-dark h-100">
-                <div class="card-body text-center p-2">
-                    <h6 class="small">Por vencer</h6>
-                    <h3 class="mb-0"><?= $porVencer ?></h3>
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body text-center">
+                    <h6>No han tomado el curso/formato</h6>
+                    <h3><?= count($noTomaron) ?></h3>
                 </div>
             </div>
         </div>
-        <div class="col-6 col-md-2">
-            <div class="card bg-danger text-white h-100">
-                <div class="card-body text-center p-2">
-                    <h6 class="small">Vencidos</h6>
-                    <h3 class="mb-0"><?= $vencidos ?></h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-md-2">
-            <div class="card bg-secondary text-white h-100">
-                <div class="card-body text-center p-2">
-                    <h6 class="small">No han tomado</h6>
-                    <h3 class="mb-0"><?= $noTomaronAlcance ?></h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-md-2">
-            <div class="card bg-info text-white h-100">
-                <div class="card-body text-center p-2">
-                    <h6 class="small">% Cobertura</h6>
-                    <h3 class="mb-0"><?= $porcentajeCobertura ?>%</h3>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <h6>% Cobertura</h6>
+                    <h3><?= $porcentajeCobertura ?>%</h3>
                 </div>
             </div>
         </div>
@@ -307,37 +204,16 @@ $departamentos = $pdo->query("SELECT id, nombre FROM departamentos WHERE activo 
                 <div class="table-responsive">
                     <table class="table table-sm table-hover">
                         <thead class="table-light">
-                            <tr><th>#</th><th>Nombre</th><th>Departamento</th><th>Sucursal</th><th>Última vez</th><th>Vigencia</th><th>Alcance</th><th>Acción</th></tr>
+                            <tr><th>#</th><th>Nombre</th><th>Departamento</th><th>Sucursal</th><th>Última vez</th><th>Acción</th></tr>
                         </thead>
                         <tbody>
                             <?php foreach ($tomaron as $e): ?>
-                            <tr id="emp-<?= $e['id'] ?>" class="<?= $e['requerido'] ? '' : 'table-light text-muted' ?>">
+                            <tr id="emp-<?= $e['id'] ?>">
                                 <td><?= htmlspecialchars($e['numero_empleado']) ?></td>
                                 <td><?= htmlspecialchars($e['nombre']) ?></td>
                                 <td><?= htmlspecialchars($e['departamento']) ?></td>
                                 <td><?= htmlspecialchars($e['sucursal']) ?></td>
                                 <td><?= date('d/m/Y', strtotime($e['ultima_fecha'])) ?></td>
-                                <td>
-                                    <?php if ($e['estado_vigencia'] === 'sin_vigencia'): ?>
-                                        <span class="badge bg-light text-dark border">No vence</span>
-                                    <?php elseif ($e['estado_vigencia'] === 'vigente'): ?>
-                                        <span class="badge bg-success">Vigente</span>
-                                        <small class="text-muted d-block">hasta <?= date('d/m/Y', strtotime($e['fecha_vencimiento'])) ?></small>
-                                    <?php elseif ($e['estado_vigencia'] === 'por_vencer'): ?>
-                                        <span class="badge bg-warning text-dark">Por vencer</span>
-                                        <small class="text-muted d-block"><?= date('d/m/Y', strtotime($e['fecha_vencimiento'])) ?></small>
-                                    <?php else: ?>
-                                        <span class="badge bg-danger">Vencido</span>
-                                        <small class="text-muted d-block">desde <?= date('d/m/Y', strtotime($e['fecha_vencimiento'])) ?></small>
-                                    <?php endif; ?>
-                                </td>
-                                <td>
-                                    <?php if ($e['requerido']): ?>
-                                        <span class="badge bg-primary">Requerido</span>
-                                    <?php else: ?>
-                                        <span class="badge bg-secondary">Fuera de alcance</span>
-                                    <?php endif; ?>
-                                </td>
                                 <td>
                                     <button class="btn btn-sm btn-outline-danger btn-desmarcar" data-empleado-id="<?= $e['id'] ?>" data-curso-id="<?= $curso_id ?>" title="Marcar como NO tomado">
                                         <i class="fas fa-times"></i> No tomado
@@ -357,22 +233,15 @@ $departamentos = $pdo->query("SELECT id, nombre FROM departamentos WHERE activo 
                 <div class="table-responsive">
                     <table class="table table-sm table-hover">
                         <thead class="table-light">
-                            <tr><th>#</th><th>Nombre</th><th>Departamento</th><th>Sucursal</th><th>Alcance</th><th>Acción</th></tr>
+                            <tr><th>#</th><th>Nombre</th><th>Departamento</th><th>Sucursal</th><th>Acción</th></tr>
                         </thead>
                         <tbody>
                             <?php foreach ($noTomaron as $e): ?>
-                            <tr id="emp-<?= $e['id'] ?>" class="<?= $e['requerido'] ? '' : 'table-light text-muted' ?>">
+                            <tr id="emp-<?= $e['id'] ?>">
                                 <td><?= htmlspecialchars($e['numero_empleado']) ?></td>
                                 <td><?= htmlspecialchars($e['nombre']) ?></td>
                                 <td><?= htmlspecialchars($e['departamento']) ?></td>
                                 <td><?= htmlspecialchars($e['sucursal']) ?></td>
-                                <td>
-                                    <?php if ($e['requerido']): ?>
-                                        <span class="badge bg-primary">Requerido</span>
-                                    <?php else: ?>
-                                        <span class="badge bg-secondary">Fuera de alcance</span>
-                                    <?php endif; ?>
-                                </td>
                                 <td>
                                     <button class="btn btn-sm btn-outline-success btn-marcar" 
                                         data-empleado-id="<?= $e['id'] ?>" 

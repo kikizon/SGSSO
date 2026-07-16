@@ -38,6 +38,12 @@ if (!empty($buscar)) {
     $paramsBase[] = "%$buscar%";
 }
 
+// Multisucursal: no-admin solo su sucursal
+if ($usuario_rol !== 'admin') {
+    $whereEmpleados[] = "e.sucursal_id = ?";
+    $paramsBase[] = $usuario_sucursal_id;
+}
+
 $whereSQL = '';
 if (!empty($whereEmpleados)) {
     $whereSQL = ' AND ' . implode(' AND ', $whereEmpleados);
@@ -66,9 +72,12 @@ if ($tipo_asignacion === 'todos') {
 } elseif ($tipo_asignacion === 'departamento') {
     $ids = implode(',', array_map('intval', $entidades_asignadas));
     $condicionDeben = "e.departamento_id IN ($ids)";
+} elseif ($tipo_asignacion === 'excepto_empleado') {
+    $ids = implode(',', array_map('intval', array_filter($entidades_asignadas, fn($v) => $v !== null)));
+    $condicionDeben = $ids !== '' ? "e.id NOT IN ($ids)" : '1=1';
 } else {
     $ids = implode(',', array_map('intval', $entidades_asignadas));
-    $condicionDeben = "e.id IN ($ids)";
+    $condicionDeben = $ids !== '' ? "e.id IN ($ids)" : '0=1';
 }
 
 $wherePendientes = '';

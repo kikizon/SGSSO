@@ -14,7 +14,9 @@ $departamentos = $pdo->query("SELECT id, nombre FROM departamentos WHERE activo 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $nombre = trim($_POST['nombre'] ?? '');
     $descripcion = trim($_POST['descripcion'] ?? '');
+    $vigencia_meses = ($_POST['vigencia_meses'] ?? '') !== '' ? max(1, (int)$_POST['vigencia_meses']) : null;
     $tipo_asignacion = $_POST['tipo_asignacion'] ?? 'todos';
+    if (!in_array($tipo_asignacion, ['todos','sucursal','departamento','empleado','excepto_empleado'], true)) { $tipo_asignacion = 'todos'; }
     $entidades = $_POST['entidades'] ?? [];
     $obligatorio = isset($_POST['obligatorio']) ? 1 : 0;
 
@@ -23,8 +25,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $pdo->beginTransaction();
         try {
-            $stmt = $pdo->prepare("INSERT INTO cursos (nombre, descripcion) VALUES (?, ?)");
-            $stmt->execute([$nombre, $descripcion]);
+            $stmt = $pdo->prepare("INSERT INTO cursos (nombre, descripcion, vigencia_meses) VALUES (?, ?, ?)");
+            $stmt->execute([$nombre, $descripcion, $vigencia_meses]);
             $curso_id = $pdo->lastInsertId();
 
             // Guardar asignaciones
@@ -79,6 +81,13 @@ include '../../includes/header.php';
                         <input type="checkbox" name="obligatorio" id="obligatorio" class="form-check-input" value="1" <?= isset($_POST['obligatorio']) ? 'checked' : '' ?>>
                         <label for="obligatorio" class="form-check-label">Curso/formato obligatorio?</label>
                     </div>
+                    <div class="mb-3">
+                       <label>Vigencia (meses)</label>
+                       <input type="number" name="vigencia_meses" class="form-control" min="1"
+                              placeholder="Vacío = no vence"
+                              value="<?= htmlspecialchars($_POST['vigencia_meses'] ?? '') ?>">
+                       <small class="text-muted">Si el curso/formato caduca, indica cada cuántos meses debe renovarse. Déjalo vacío si no vence.</small>
+                   </div>
                 </div>
             </div>
         </div>
@@ -103,6 +112,10 @@ include '../../includes/header.php';
                         <div class="form-check">
                             <input class="form-check-input" type="radio" name="tipo_asignacion" value="empleado" id="empleado">
                             <label class="form-check-label" for="empleado">Empleados específicos</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="tipo_asignacion" value="excepto_empleado" id="excepto_empleado">
+                            <label class="form-check-label" for="excepto_empleado">Todos, excepto empleados específicos</label>
                         </div>
                     </div>
 
@@ -153,7 +166,7 @@ document.querySelectorAll('input[name="tipo_asignacion"]').forEach(radio => {
     radio.addEventListener('change', function() {
         document.getElementById('panelSucursales').style.display = this.value === 'sucursal' ? 'block' : 'none';
         document.getElementById('panelDepartamentos').style.display = this.value === 'departamento' ? 'block' : 'none';
-        document.getElementById('panelEmpleados').style.display = this.value === 'empleado' ? 'block' : 'none';
+        document.getElementById('panelEmpleados').style.display = (this.value === 'empleado' || this.value === 'excepto_empleado') ? 'block' : 'none';
     });
 });
 
