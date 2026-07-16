@@ -97,13 +97,14 @@ include '../../includes/header.php';
                 <th>Sucursal</th>
                 <th>Depto</th>
                 <th><?=$labelCatalogo?></th>
+                <?php if ($tipo_filtro == 'accidente'): ?><th class="text-center">Días incap.</th><?php endif; ?>
                 <th>Reportado por</th>
                 <th>Acciones</th>
             </tr>
         </thead>
         <tbody>
             <?php if (empty($reportes)): ?>
-                <tr><td colspan="8" class="text-center">No hay reportes.</td></tr>
+                <tr><td colspan="<?= $tipo_filtro == 'accidente' ? 9 : 8 ?>" class="text-center">No hay reportes.</td></tr>
             <?php else: ?>
                 <?php foreach ($reportes as $r): 
                     $rowClass = '';
@@ -124,6 +125,7 @@ include '../../includes/header.php';
                     <td><?= htmlspecialchars($r['sucursal_nombre']) ?></td>
                     <td><?= htmlspecialchars($r['departamento_nombre']) ?></td>
                     <td><?= htmlspecialchars($r['catalogo_descripcion']) ?></td>
+                    <?php if ($tipo_filtro == 'accidente'): ?><td class="text-center"><?= (int)$r['dias_perdidos'] ?></td><?php endif; ?>
                     <td><?= htmlspecialchars($r['reportado_por_nombre']) ?></td>
                     <td>
                         <button class="btn btn-sm btn-outline-primary ver-reporte" data-id="<?= $r['id'] ?>" title="Ver detalles"><i class="fas fa-eye"></i></button>

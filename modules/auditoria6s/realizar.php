@@ -1,35 +1,22 @@
 <?php
 require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
+require_once __DIR__ . '/_semanas.php';
 
 $es_admin = ($usuario_rol === 'admin');
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
 $auditoria = null;
-$respuestas = []; // criterio_id => row
-
 if ($id) {
-    $stmt = $pdo->prepare("SELECT a.*, s.nombre AS sucursal, d.nombre AS departamento
-                           FROM auditorias_6s a
-                           JOIN sucursales s ON s.id = a.sucursal_id
-                           JOIN departamentos d ON d.id = a.departamento_id
-                           WHERE a.id = ?");
+    $stmt = $pdo->prepare("SELECT a.*, s.nombre AS sucursal FROM auditorias_6s a
+                           JOIN sucursales s ON s.id = a.sucursal_id WHERE a.id = ?");
     $stmt->execute([$id]);
     $auditoria = $stmt->fetch();
-
     if (!$auditoria) { redirect('modules/auditoria6s/listar.php'); }
-    // Alcance por sucursal
-    if (!$es_admin && $auditoria['sucursal_id'] != $usuario_sucursal_id) {
-        redirect('modules/auditoria6s/listar.php');
-    }
-
-    // Respuestas existentes
-    $r = $pdo->prepare("SELECT * FROM auditorias_6s_respuestas WHERE auditoria_id = ?");
-    $r->execute([$id]);
-    foreach ($r->fetchAll() as $row) { $respuestas[$row['criterio_id']] = $row; }
+    if (!$es_admin && $auditoria['sucursal_id'] != $usuario_sucursal_id) { redirect('modules/auditoria6s/listar.php'); }
 }
 
-// ---- Pantalla de inicio (sin auditoría seleccionada) ----
+// ---- Pantalla de inicio: sucursal + semana ----
 if (!$auditoria) {
     if ($es_admin) {
         $sucursales = $pdo->query("SELECT id, nombre FROM sucursales WHERE activo = 1 ORDER BY nombre")->fetchAll();
@@ -38,23 +25,31 @@ if (!$auditoria) {
         $sucursales->execute([$usuario_sucursal_id]);
         $sucursales = $sucursales->fetchAll();
     }
-    // Solo departamentos que tienen al menos un criterio activo asignado
-    $departamentos = $pdo->query("SELECT DISTINCT d.id, d.nombre
-                                  FROM departamentos d
-                                  JOIN criterios_6s_departamento cd ON cd.departamento_id = d.id
-                                  JOIN criterios_6s cr ON cr.id = cd.criterio_id AND cr.activo = 1
-                                  WHERE d.activo = 1
-                                  ORDER BY d.nombre")->fetchAll();
+    [$anioActual, $semActual] = s6_semana_actual();
+    $anioSel = (int)($_GET['anio'] ?? $anioActual);
+    if ($anioSel < 2020 || $anioSel > $anioActual + 1) $anioSel = $anioActual;
+    $numSemanas = s6_semanas_en_anio($anioSel);
+    $semDefault = ($anioSel === $anioActual) ? $semActual : 1;
 
     include '../../includes/header.php';
     ?>
     <h2><i class="fas fa-clipboard-check"></i> Nueva auditoría 6S</h2>
+    <p class="text-muted">Una auditoría abarca <strong>todas las áreas</strong> de la sucursal durante una <strong>semana</strong>. El inicio y fin se registran automáticamente.</p>
     <div class="row justify-content-center">
         <div class="col-12 col-md-6 col-lg-5">
             <div class="card card-body">
+                <form method="get" id="formAnio" class="mb-2">
+                    <label class="form-label">Año</label>
+                    <select name="anio" class="form-select" onchange="document.getElementById('formAnio').submit()">
+                        <?php for ($y = $anioActual + 1; $y >= $anioActual - 2; $y--): ?>
+                            <option value="<?= $y ?>" <?= $y === $anioSel ? 'selected' : '' ?>><?= $y ?></option>
+                        <?php endfor; ?>
+                    </select>
+                </form>
                 <form method="post" action="guardar.php">
                     <input type="hidden" name="csrf_token" value="<?= generate_csrf_token() ?>">
                     <input type="hidden" name="accion" value="crear">
+                    <input type="hidden" name="anio" value="<?= $anioSel ?>">
                     <div class="mb-3">
                         <label class="form-label">Sucursal</label>
                         <select name="sucursal_id" class="form-select" required>
@@ -65,17 +60,12 @@ if (!$auditoria) {
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">Departamento</label>
-                        <select name="departamento_id" class="form-select" required>
-                            <option value="">Seleccione…</option>
-                            <?php foreach ($departamentos as $d): ?>
-                                <option value="<?= $d['id'] ?>"><?= htmlspecialchars($d['nombre']) ?></option>
-                            <?php endforeach; ?>
+                        <label class="form-label">Semana</label>
+                        <select name="semana" class="form-select" required>
+                            <?php for ($w = 1; $w <= $numSemanas; $w++): ?>
+                                <option value="<?= $w ?>" <?= $w === $semDefault ? 'selected' : '' ?>><?= htmlspecialchars(s6_label_semana($anioSel, $w)) ?></option>
+                            <?php endfor; ?>
                         </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Fecha</label>
-                        <input type="date" name="fecha" class="form-control" value="<?= date('Y-m-d') ?>" required>
                     </div>
                     <button class="btn btn-primary w-100"><i class="fas fa-play"></i> Iniciar auditoría</button>
                     <a href="listar.php" class="btn btn-link w-100">Cancelar</a>
@@ -83,247 +73,276 @@ if (!$auditoria) {
             </div>
         </div>
     </div>
-    <?php
-    include '../../includes/footer.php';
-    exit;
+    <?php include '../../includes/footer.php'; exit;
 }
 
-// ---- Captura: criterios del departamento agrupados por categoría ----
-$cstmt = $pdo->prepare("SELECT cr.id, cr.texto, cat.id AS cat_id, cat.nombre AS cat_nombre, cat.orden AS cat_orden
-                        FROM criterios_6s cr
-                        JOIN categorias_6s cat ON cat.id = cr.categoria_id
-                        JOIN criterios_6s_departamento cd ON cd.criterio_id = cr.id AND cd.departamento_id = ?
-                        WHERE cr.activo = 1 AND cat.activo = 1
-                        ORDER BY cat.orden, cr.orden, cr.id");
-$cstmt->execute([$auditoria['departamento_id']]);
-$criterios = $cstmt->fetchAll();
+// ---- Captura ----
+$departamentos = $pdo->query("SELECT DISTINCT d.id, d.nombre
+                              FROM departamentos d
+                              JOIN criterios_6s_departamento cd ON cd.departamento_id = d.id
+                              JOIN criterios_6s cr ON cr.id = cd.criterio_id AND cr.activo = 1
+                              WHERE d.activo = 1 ORDER BY d.nombre")->fetchAll();
 
-// Agrupar por categoría
-$grupos = [];
-foreach ($criterios as $c) {
-    $grupos[$c['cat_id']]['nombre'] = $c['cat_nombre'];
-    $grupos[$c['cat_id']]['items'][] = $c;
+$critStmt = $pdo->prepare("SELECT cr.id, cr.texto, cat.id AS cat_id, cat.nombre AS cat_nombre
+                           FROM criterios_6s cr
+                           JOIN categorias_6s cat ON cat.id = cr.categoria_id AND cat.activo = 1
+                           JOIN criterios_6s_departamento cd ON cd.criterio_id = cr.id AND cd.departamento_id = ?
+                           WHERE cr.activo = 1 ORDER BY cat.orden, cr.orden, cr.id");
+
+$r = $pdo->prepare("SELECT * FROM auditorias_6s_respuestas WHERE auditoria_id = ?");
+$r->execute([$id]);
+$resp = [];
+foreach ($r->fetchAll() as $row) { $resp[$row['departamento_id']][$row['criterio_id']] = $row; }
+
+$f = $pdo->prepare("SELECT departamento_id, empleado_id FROM auditorias_6s_firmantes WHERE auditoria_id = ?");
+$f->execute([$id]);
+$firmDep = [];
+foreach ($f->fetchAll() as $row) { $firmDep[$row['departamento_id']][] = (int)$row['empleado_id']; }
+
+$empStmt = $pdo->prepare("SELECT id, nombre FROM empleados WHERE departamento_id = ? AND sucursal_id = ? AND activo = 1 ORDER BY nombre");
+
+// Botones de calificación: valor => [etiqueta, clase outline]
+$botones = [
+    '1'  => ['No cumple y desconoce', 'danger'],
+    '2'  => ['No cumple',             'warning'],
+    '3'  => ['Cumple, falta mejorar', 'info'],
+    '4'  => ['Sí cumple',             'success'],
+    'na' => ['N.A.',                  'secondary'],
+];
+
+$total_criterios = 0;
+$semanaLabel = ($auditoria['anio'] && $auditoria['semana']) ? s6_label_semana((int)$auditoria['anio'], (int)$auditoria['semana']) : format_date_es($auditoria['fecha']);
+$finalizada = ($auditoria['estado'] === 'finalizada');
+
+// Pre-cálculo de criterios por departamento (para render y para no repetir queries)
+$depData = [];
+foreach ($departamentos as $dep) {
+    $depId = (int)$dep['id'];
+    $critStmt->execute([$depId]);
+    $criterios = $critStmt->fetchAll();
+    if (empty($criterios)) continue;
+    $grupos = [];
+    foreach ($criterios as $c) { $grupos[$c['cat_id']]['nombre'] = $c['cat_nombre']; $grupos[$c['cat_id']]['items'][] = $c; }
+    $total_criterios += count($criterios);
+    $empStmt->execute([$depId, $auditoria['sucursal_id']]);
+    $depData[] = [
+        'id' => $depId, 'nombre' => $dep['nombre'], 'grupos' => $grupos,
+        'count' => count($criterios), 'empleados' => $empStmt->fetchAll(),
+        'firmas' => $firmDep[$depId] ?? [],
+    ];
 }
-$total_criterios = count($criterios);
-
-// Firmantes disponibles = empleados del departamento auditado en esa sucursal
-$rstmt = $pdo->prepare("SELECT id, nombre FROM empleados
-                        WHERE departamento_id = ? AND sucursal_id = ? AND activo = 1
-                        ORDER BY nombre");
-$rstmt->execute([$auditoria['departamento_id'], $auditoria['sucursal_id']]);
-$emp_depto = $rstmt->fetchAll();
-
-// Firmantes ya seleccionados
-$fstmt = $pdo->prepare("SELECT empleado_id FROM auditorias_6s_firmantes WHERE auditoria_id = ?");
-$fstmt->execute([$auditoria['id']]);
-$firmantes_sel = array_map('intval', array_column($fstmt->fetchAll(), 'empleado_id'));
-
-$labels = [1 => 'No cumple y desconoce', 2 => 'No cumple', 3 => 'Cumple, falta mejorar', 4 => 'Sí cumple'];
-$btnclass = [1 => 'danger', 2 => 'warning', 3 => 'info', 4 => 'success'];
 
 include '../../includes/header.php';
 ?>
 <style>
-.s6-cat-head { font-weight:600; }
-.s6-crit { border:1px solid #e3e6ea; border-radius:.5rem; padding:.75rem; margin-bottom:.75rem; background:#fff; }
-.s6-opts .btn { font-size:.8rem; }
-.s6-sticky { position:sticky; top:0; z-index:1020; background:#fff; border-bottom:1px solid #dee2e6; padding:.5rem .25rem; margin:-.5rem -.25rem .75rem; }
-@media (max-width:576px){ .s6-opts .btn { font-size:.72rem; padding:.35rem .25rem; } }
+  .s6-steps{display:flex;flex-wrap:wrap;gap:.35rem}
+  .s6-step{width:34px;height:34px;border-radius:50%;border:1px solid #ced4da;background:#fff;color:#6c757d;font-weight:600;font-size:.85rem;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+  .s6-step.s6-active{outline:3px solid rgba(13,110,253,.35)}
+  .s6-step.s6-partial{background:#fff3cd;border-color:#ffc107;color:#9a7d0a}
+  .s6-step.s6-complete{background:#198754;border-color:#198754;color:#fff}
+  .s6-btns .btn{font-weight:600}
+  .s6-crit{border:1px solid #eef0f2;border-radius:.6rem;padding:.75rem;margin-bottom:.75rem;background:#fff}
+  .s6-bottom{position:sticky;bottom:0;background:#fff;border-top:1px solid #dee2e6;padding:.6rem 0;z-index:5}
+  @media (max-width:575.98px){ .s6-btns .btn{flex:1 1 46%} }
 </style>
 
-<div class="s6-sticky">
-  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-    <div>
-      <div class="fw-bold"><i class="fas fa-clipboard-check"></i> <?= htmlspecialchars($auditoria['departamento']) ?></div>
-      <small class="text-muted"><?= htmlspecialchars($auditoria['sucursal']) ?> · <?= format_date_es($auditoria['fecha']) ?>
-        <?php if ($auditoria['estado'] === 'finalizada'): ?><span class="badge bg-success ms-1">Finalizada</span><?php endif; ?>
-      </small>
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+  <div>
+    <h2 class="mb-1"><i class="fas fa-clipboard-check"></i> Auditoría 6S</h2>
+    <div class="text-muted"><?= htmlspecialchars($auditoria['sucursal']) ?> · <?= htmlspecialchars($semanaLabel) ?>
+      <?php if ($finalizada): ?><span class="badge bg-success ms-1">Finalizada</span>
+      <?php else: ?><span class="badge bg-warning text-dark ms-1">Borrador</span><?php endif; ?>
     </div>
-    <div class="text-end">
-      <div class="h5 mb-0">Eval: <span id="s6-prom" class="badge bg-secondary">0%</span></div>
-      <small class="text-muted"><span id="s6-cont">0</span>/<?= $total_criterios ?> contestados</small>
+  </div>
+  <a href="listar.php" class="btn btn-sm btn-outline-secondary"><i class="fas fa-list"></i> Volver</a>
+</div>
+
+<?php if (($_GET['err'] ?? '') === 'incompleto'): ?>
+  <div class="alert alert-warning">Faltan <?= (int)($_GET['faltan'] ?? 0) ?> criterios por resolver (calificar o marcar N.A.). Se guardó como borrador.</div>
+<?php elseif (($_GET['msg'] ?? '') === 'guardada'): ?>
+  <div class="alert alert-success">Avance guardado.</div>
+<?php endif; ?>
+
+<!-- Barra superior: posición + pasos + progreso global -->
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body py-2">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+      <strong id="s6Pos">Área 1 de <?= count($depData) ?></strong>
+      <span class="text-muted small" id="s6Global">0 de <?= count($depData) ?> áreas completas</span>
+    </div>
+    <div class="s6-steps">
+      <?php foreach ($depData as $i => $d): ?>
+        <button type="button" class="s6-step" data-step="<?= $i ?>" onclick="s6Show(<?= $i ?>)" title="<?= htmlspecialchars($d['nombre']) ?>"><?= $i + 1 ?></button>
+      <?php endforeach; ?>
     </div>
   </div>
 </div>
 
-<?php if (($_GET['msg'] ?? '') === 'guardada'): ?>
-  <div class="alert alert-success alert-dismissible">Borrador guardado correctamente.
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-<?php endif; ?>
-<?php if (($_GET['err'] ?? '') === 'incompleto'): ?>
-  <div class="alert alert-danger alert-dismissible">
-    <i class="fas fa-exclamation-circle"></i> No se puede finalizar: faltan <strong><?= (int)($_GET['faltan'] ?? 0) ?></strong> criterio(s) por contestar. Se guardó como borrador.
-    <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
-<?php endif; ?>
-<?php if ($auditoria['estado'] === 'finalizada'): ?>
-  <div class="alert alert-warning">
-    <i class="fas fa-exclamation-triangle"></i> Esta auditoría ya está <strong>finalizada</strong>. Si guardas cambios, se actualizará el registro y se recalculará la evaluación.
-  </div>
-<?php endif; ?>
+<form method="post" action="guardar.php" enctype="multipart/form-data" id="s6Form">
+  <input type="hidden" name="csrf_token" value="<?= generate_csrf_token() ?>">
+  <input type="hidden" name="auditoria_id" value="<?= $id ?>">
 
-<form method="post" action="guardar.php" enctype="multipart/form-data" id="s6-form">
-<input type="hidden" name="csrf_token" value="<?= generate_csrf_token() ?>">
-<input type="hidden" name="accion" value="guardar">
-<input type="hidden" name="auditoria_id" value="<?= (int)$auditoria['id'] ?>">
-<input type="hidden" name="finalizar" id="s6-finalizar" value="0">
-<input type="hidden" id="s6-fecha-aud" value="<?= htmlspecialchars($auditoria['fecha']) ?>">
-
-<div class="accordion" id="s6-acc">
-<?php $gi = 0; foreach ($grupos as $cat_id => $g): $gi++; ?>
-  <div class="accordion-item">
-    <h2 class="accordion-header">
-      <button class="accordion-button <?= $gi === 1 ? '' : 'collapsed' ?> s6-cat-head" type="button"
-              data-bs-toggle="collapse" data-bs-target="#cat<?= $cat_id ?>">
-        <?= htmlspecialchars($g['nombre']) ?> <span class="badge bg-light text-dark ms-2"><?= count($g['items']) ?></span>
-      </button>
-    </h2>
-    <div id="cat<?= $cat_id ?>" class="accordion-collapse collapse <?= $gi === 1 ? 'show' : '' ?>" data-bs-parent="#s6-acc">
-      <div class="accordion-body p-2">
-        <?php foreach ($g['items'] as $c):
-            $cid = $c['id'];
-            $resp = $respuestas[$cid] ?? null;
-            $calif = $resp['calificacion'] ?? null;
-        ?>
-        <div class="s6-crit">
-          <div class="mb-2"><?= htmlspecialchars($c['texto']) ?></div>
-          <div class="btn-group s6-opts w-100 mb-2" role="group">
-            <?php foreach ($labels as $val => $txt): ?>
-              <input type="radio" class="btn-check s6-calif" name="calif[<?= $cid ?>]" id="c<?= $cid ?>_<?= $val ?>"
-                     value="<?= $val ?>" autocomplete="off" <?= (int)$calif === $val ? 'checked' : '' ?>>
-              <label class="btn btn-outline-<?= $btnclass[$val] ?>" for="c<?= $cid ?>_<?= $val ?>"><?= $txt ?></label>
-            <?php endforeach; ?>
+  <?php foreach ($depData as $i => $d):
+      $depId = $d['id']; ?>
+  <section class="dep-panel <?= $i === 0 ? '' : 'd-none' ?>" data-dep-index="<?= $i ?>" data-dep-id="<?= $depId ?>" data-total="<?= $d['count'] ?>">
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <h4 class="mb-0"><?= htmlspecialchars($d['nombre']) ?></h4>
+          <span class="badge bg-light text-dark border"><?= $d['count'] ?> criterios</span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <div class="progress flex-grow-1" style="height:10px;">
+            <div class="s6-dep-bar progress-bar bg-secondary" role="progressbar" style="width:0%"></div>
           </div>
-          <button type="button" class="btn btn-sm btn-link p-0 text-decoration-none" data-bs-toggle="collapse" data-bs-target="#extra<?= $cid ?>">
-            <i class="fas fa-sliders-h"></i> Detalle / foto
+          <span class="small text-muted s6-dep-count" style="white-space:nowrap;">0 de <?= $d['count'] ?></span>
+        </div>
+      </div>
+    </div>
+
+    <?php foreach ($d['grupos'] as $g): ?>
+      <h6 class="text-primary border-bottom pb-1 mt-3"><?= htmlspecialchars($g['nombre']) ?></h6>
+      <?php foreach ($g['items'] as $c):
+          $cid = (int)$c['id'];
+          $row = $resp[$depId][$cid] ?? null;
+          $valActual = '';
+          if ($row) {
+              if ((int)($row['no_aplica'] ?? 0) === 1) $valActual = 'na';
+              elseif ($row['calificacion'] !== null && $row['calificacion'] !== '') $valActual = (string)(int)$row['calificacion'];
+          }
+      ?>
+      <div class="s6-crit">
+        <div class="fw-medium mb-2"><?= htmlspecialchars($c['texto']) ?></div>
+        <input type="hidden" class="s6-val" name="calif[<?= $depId ?>][<?= $cid ?>]" value="<?= htmlspecialchars($valActual) ?>">
+        <div class="s6-btns d-flex flex-wrap gap-2 mb-2">
+          <?php foreach ($botones as $val => $b): ?>
+            <button type="button" class="btn btn-outline-<?= $b[1] ?> s6-cal <?= $valActual === (string)$val ? 'active' : '' ?>" data-val="<?= $val ?>" onclick="s6SetCal(this)"><?= htmlspecialchars($b[0]) ?></button>
+          <?php endforeach; ?>
+        </div>
+
+        <!-- Detalles / acción correctiva (colapsable) -->
+        <div>
+          <button class="btn btn-sm btn-link p-0 text-decoration-none" type="button" data-bs-toggle="collapse" data-bs-target="#det<?= $depId ?>_<?= $cid ?>">
+            <i class="fas fa-sliders-h"></i> Acción correctiva / evidencia
           </button>
-          <div id="extra<?= $cid ?>" class="collapse mt-2">
+          <div class="collapse mt-2" id="det<?= $depId ?>_<?= $cid ?>">
             <div class="row g-2">
               <div class="col-6 col-md-3">
                 <label class="form-label small mb-1">Prioridad</label>
-                <select name="prioridad[<?= $cid ?>]" class="form-select form-select-sm">
+                <select name="prioridad[<?= $depId ?>][<?= $cid ?>]" class="form-select form-select-sm">
                   <option value="">—</option>
                   <?php foreach (['Urgente','Normal','No urgente'] as $p): ?>
-                    <option value="<?= $p ?>" <?= ($resp['prioridad'] ?? '') === $p ? 'selected' : '' ?>><?= $p ?></option>
+                    <option value="<?= $p ?>" <?= ($row && $row['prioridad'] === $p) ? 'selected' : '' ?>><?= $p ?></option>
                   <?php endforeach; ?>
                 </select>
               </div>
-              <div class="col-6 col-md-3">
-                <input type="number" min="0" name="dias[<?= $cid ?>]" class="form-control form-control-sm s6-dias"
-                       data-cid="<?= $cid ?>" value="<?= htmlspecialchars($resp['dias_para_corregir'] ?? '') ?>">
+              <div class="col-6 col-md-2">
+                <label class="form-label small mb-1">Días</label>
+                <input type="number" min="0" inputmode="numeric" name="dias[<?= $depId ?>][<?= $cid ?>]" class="form-control form-control-sm" placeholder="Días" value="<?= $row && $row['dias_para_corregir'] !== null ? (int)$row['dias_para_corregir'] : '' ?>">
               </div>
-              <div class="col-6 col-md-3">
-                <label class="form-label small mb-1">Fecha compromiso</label>
-                <input type="text" id="fc<?= $cid ?>" class="form-control form-control-sm" readonly
-                       value="<?= $resp && $resp['fecha_compromiso'] ? format_date_es($resp['fecha_compromiso']) : '' ?>">
-              </div>
-              <div class="col-12">
+              <div class="col-12 col-md-7">
                 <label class="form-label small mb-1">Comentarios</label>
-                <textarea name="coment[<?= $cid ?>]" rows="2" class="form-control form-control-sm"><?= htmlspecialchars($resp['comentarios'] ?? '') ?></textarea>
+                <input type="text" name="coment[<?= $depId ?>][<?= $cid ?>]" class="form-control form-control-sm" placeholder="Comentarios" value="<?= $row ? htmlspecialchars($row['comentarios'] ?? '') : '' ?>">
               </div>
               <div class="col-12">
-                <label class="form-label small mb-1"><i class="fas fa-camera"></i> Fotos</label>
-                <input type="file" name="foto<?= $cid ?>[]" class="form-control form-control-sm" accept="image/*" capture="environment" multiple>
-                <?php if ($resp):
-                    $ev = $pdo->prepare("SELECT id, nombre_archivo FROM auditorias_6s_evidencias WHERE respuesta_id = ?");
-                    $ev->execute([$resp['id']]);
-                    $fotos = $ev->fetchAll();
-                    if ($fotos): ?>
-                    <div class="d-flex flex-wrap gap-2 mt-2">
-                      <?php foreach ($fotos as $f): ?>
-                        <a href="<?= UPLOAD_URL . htmlspecialchars($f['nombre_archivo']) ?>" target="_blank">
-                          <img src="<?= UPLOAD_URL . htmlspecialchars($f['nombre_archivo']) ?>" style="height:64px;width:64px;object-fit:cover;border-radius:.35rem;">
-                        </a>
-                      <?php endforeach; ?>
-                    </div>
-                    <?php endif;
-                endif; ?>
+                <label class="form-label small mb-1">Fotos</label>
+                <input type="file" name="foto_<?= $depId ?>_<?= $cid ?>[]" class="form-control form-control-sm" accept="image/*" capture="environment" multiple>
               </div>
             </div>
           </div>
         </div>
-        <?php endforeach; ?>
+      </div>
+      <?php endforeach; ?>
+    <?php endforeach; ?>
+
+    <div class="card border-0 shadow-sm my-3">
+      <div class="card-body">
+        <label class="form-label small mb-1"><i class="fas fa-signature"></i> Firmantes de <?= htmlspecialchars($d['nombre']) ?></label>
+        <select name="firmantes[<?= $depId ?>][]" class="form-select" multiple size="3">
+          <?php foreach ($d['empleados'] as $e): ?>
+            <option value="<?= $e['id'] ?>" <?= in_array((int)$e['id'], $d['firmas'], true) ? 'selected' : '' ?>><?= htmlspecialchars($e['nombre']) ?></option>
+          <?php endforeach; ?>
+        </select>
+        <small class="text-muted">Mantén presionado (o Ctrl) para elegir varios.</small>
       </div>
     </div>
-  </div>
-<?php endforeach; ?>
-</div>
 
-<div class="card my-3">
-  <div class="card-header"><i class="fas fa-signature"></i> Firmantes de conformidad</div>
-  <div class="card-body">
-    <p class="small text-muted mb-2">Selecciona los responsables del departamento que firmarán la hoja. El auditor se incluye automáticamente.</p>
-    <?php if (empty($emp_depto)): ?>
-      <div class="alert alert-warning mb-0 small">No hay empleados activos en este departamento y sucursal. Regístralos en Catálogos → Empleados para poder seleccionarlos como firmantes.</div>
-    <?php else: ?>
-      <div class="row g-1">
-      <?php foreach ($emp_depto as $e): ?>
-        <div class="col-12 col-md-6">
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" name="firmantes[]" value="<?= $e['id'] ?>"
-                   id="firm<?= $e['id'] ?>" <?= in_array((int)$e['id'], $firmantes_sel, true) ? 'checked' : '' ?>>
-            <label class="form-check-label" for="firm<?= $e['id'] ?>"><?= htmlspecialchars($e['nombre']) ?></label>
-          </div>
-        </div>
-      <?php endforeach; ?>
-      </div>
-    <?php endif; ?>
-  </div>
-</div>
+    <!-- Navegación entre áreas -->
+    <div class="d-flex justify-content-between mb-3">
+      <button type="button" class="btn btn-outline-secondary" onclick="s6Show(window.s6Idx-1)"><i class="fas fa-chevron-left"></i> Área anterior</button>
+      <button type="button" class="btn btn-outline-primary" onclick="s6Show(window.s6Idx+1)">Siguiente área <i class="fas fa-chevron-right"></i></button>
+    </div>
+  </section>
+  <?php endforeach; ?>
 
-<div class="d-flex gap-2 my-3 sticky-bottom bg-white py-2">
-  <button type="submit" class="btn btn-outline-secondary flex-fill" onclick="document.getElementById('s6-finalizar').value='0'">
-    <i class="fas fa-save"></i> Guardar borrador
-  </button>
-  <button type="submit" class="btn btn-success flex-fill"
-          onclick="return finalizar6s();">
-    <i class="fas fa-check-circle"></i> Finalizar
-  </button>
-</div>
+  <div class="s6-bottom d-flex flex-wrap gap-2 align-items-center">
+    <button type="submit" name="finalizar" value="0" class="btn btn-secondary"><i class="fas fa-save"></i> Guardar avance</button>
+    <button type="submit" name="finalizar" value="1" class="btn btn-success" onclick="return confirm('¿Finalizar la auditoría? Deben estar resueltos (calificados o N.A.) todos los criterios de todas las áreas.');"><i class="fas fa-check"></i> Finalizar</button>
+    <span class="ms-auto text-muted small">Total de criterios: <?= $total_criterios ?></span>
+  </div>
 </form>
 
 <script>
-const S6_TOTAL = <?= $total_criterios ?>;
-function recalc6s() {
-  const grupos = {};
-  document.querySelectorAll('.s6-calif:checked').forEach(el => {
-    grupos[el.name] = parseInt(el.value, 10);
-  });
-  const llaves = Object.keys(grupos);
-  let suma = 0;
-  llaves.forEach(k => suma += grupos[k] * 25);
-  const cont = llaves.length;
-  const prom = cont ? (suma / cont) : 0; // promedio de contestados (vista en vivo)
-  document.getElementById('s6-cont').textContent = cont;
-  const badge = document.getElementById('s6-prom');
-  badge.textContent = prom.toFixed(1) + '%';
-  badge.className = 'badge bg-' + (prom >= 85 ? 'success' : prom >= 70 ? 'info' : prom >= 50 ? 'warning' : (cont ? 'danger' : 'secondary'));
-}
-document.querySelectorAll('.s6-calif').forEach(el => el.addEventListener('change', recalc6s));
+(function () {
+  const panels = Array.from(document.querySelectorAll('.dep-panel'));
+  window.s6Idx = 0;
 
-// Fecha compromiso = fecha auditoría + días
-const fechaAud = document.getElementById('s6-fecha-aud').value;
-function calcFC(cid, dias) {
-  const fc = document.getElementById('fc' + cid);
-  if (!dias || isNaN(dias) || !fechaAud) { fc.value = ''; return; }
-  const d = new Date(fechaAud + 'T00:00:00');
-  d.setDate(d.getDate() + parseInt(dias, 10));
-  const dd = String(d.getDate()).padStart(2,'0'), mm = String(d.getMonth()+1).padStart(2,'0');
-  fc.value = dd + '/' + mm + '/' + d.getFullYear();
-}
-document.querySelectorAll('.s6-dias').forEach(inp => {
-  inp.addEventListener('input', () => calcFC(inp.dataset.cid, inp.value));
-});
+  window.s6SetCal = function (btn) {
+    const crit = btn.closest('.s6-crit');
+    const input = crit.querySelector('input.s6-val');
+    crit.querySelectorAll('.s6-cal').forEach(b => b.classList.remove('active'));
+    // permite "deseleccionar" si tocas el botón ya activo
+    if (input.value === btn.dataset.val) {
+      input.value = '';
+    } else {
+      btn.classList.add('active');
+      input.value = btn.dataset.val;
+    }
+    s6Recompute(btn.closest('.dep-panel'));
+  };
 
-function finalizar6s() {
-  const cont = document.querySelectorAll('.s6-calif:checked').length;
-  if (cont < S6_TOTAL) {
-    alert('No puedes finalizar: faltan ' + (S6_TOTAL - cont) + ' criterio(s) por contestar. Debes calificar todos los criterios.');
-    return false;
+  function s6Recompute(panel) {
+    const total = parseInt(panel.dataset.total, 10) || 0;
+    const done = Array.from(panel.querySelectorAll('input.s6-val')).filter(i => i.value !== '').length;
+    const pct = total > 0 ? Math.round(done / total * 100) : 0;
+    const bar = panel.querySelector('.s6-dep-bar');
+    bar.style.width = pct + '%';
+    bar.className = 's6-dep-bar progress-bar ' + (done === 0 ? 'bg-secondary' : (done < total ? 'bg-warning' : 'bg-success'));
+    panel.querySelector('.s6-dep-count').textContent = done + ' de ' + total;
+    const idx = panel.dataset.depIndex;
+    const dot = document.querySelector('.s6-step[data-step="' + idx + '"]');
+    if (dot) {
+      dot.classList.toggle('s6-complete', total > 0 && done === total);
+      dot.classList.toggle('s6-partial', done > 0 && done < total);
+    }
+    s6Global();
   }
-  document.getElementById('s6-finalizar').value = '1';
-  return true;
-}
-recalc6s();
+
+  function s6Global() {
+    let comp = 0;
+    panels.forEach(p => {
+      const t = parseInt(p.dataset.total, 10) || 0;
+      const d = Array.from(p.querySelectorAll('input.s6-val')).filter(i => i.value !== '').length;
+      if (t > 0 && d === t) comp++;
+    });
+    const g = document.getElementById('s6Global');
+    if (g) g.textContent = comp + ' de ' + panels.length + ' áreas completas';
+  }
+
+  window.s6Show = function (i) {
+    if (i < 0 || i >= panels.length) return;
+    window.s6Idx = i;
+    panels.forEach((p, k) => p.classList.toggle('d-none', k !== i));
+    const pos = document.getElementById('s6Pos');
+    if (pos) pos.textContent = 'Área ' + (i + 1) + ' de ' + panels.length;
+    document.querySelectorAll('.s6-step').forEach(d => d.classList.toggle('s6-active', parseInt(d.dataset.step, 10) === i));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // init
+  panels.forEach(s6Recompute);
+  s6Show(0);
+})();
 </script>
 
 <?php include '../../includes/footer.php'; ?>

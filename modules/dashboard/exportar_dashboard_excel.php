@@ -15,318 +15,212 @@ use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 
-// ============================================================
-// FUNCIONES AUXILIARES PARA GRÁFICOS
-// ============================================================
-function agregarGraficoLinea($sheet, $labels, $valores, $titulo, $topLeft, $bottomRight, $seriesLabel = 'Reportes') {
-    $lblSerie = [new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_STRING, NULL, NULL, 1, [$seriesLabel])];
-    $xAxis = [new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_STRING, NULL, NULL, count($labels), $labels)];
-    $val = [new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_NUMBER, NULL, NULL, count($valores), $valores)];
-    $series = new DataSeries(DataSeries::TYPE_LINECHART, DataSeries::GROUPING_STANDARD, [0], $lblSerie, $xAxis, $val);
-    $layout = new Layout(); $layout->setShowVal(true);
-    $plot = new PlotArea($layout, [$series]);
-    $legend = new Legend(Legend::POSITION_BOTTOM);
-    $chart = new Chart('line_'.uniqid(), new Title($titulo), $legend, $plot, true, 0, NULL, NULL);
-    $chart->setTopLeftPosition($topLeft);
-    $chart->setBottomRightPosition($bottomRight);
-    $sheet->addChart($chart);
+/* ============================================================
+ * Helpers de consulta parametrizada
+ * ============================================================ */
+function q(PDO $pdo, string $sql, array $p = []): array {
+    $st = $pdo->prepare($sql); $st->execute($p); return $st->fetchAll();
+}
+function qcol(PDO $pdo, string $sql, array $p = []) {
+    $st = $pdo->prepare($sql); $st->execute($p); return $st->fetchColumn();
 }
 
-function agregarGraficoBarras($sheet, $labels, $valores, $titulo, $topLeft, $bottomRight, $horizontal = false, $seriesLabel = 'Reportes') {
-    $lblSerie = [new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_STRING, NULL, NULL, 1, [$seriesLabel])];
+/* ============================================================
+ * Helpers de gráficos (con guarda de datos vacíos)
+ * ============================================================ */
+function graficoBarras($sheet, $labels, $valores, $titulo, $tl, $br, $horizontal = false, $serie = 'Total') {
+    if (empty($labels) || array_sum($valores) == 0) return;
+    $lblSerie = [new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_STRING, NULL, NULL, 1, [$serie])];
     $xAxis = [new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_STRING, NULL, NULL, count($labels), $labels)];
     $val = [new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_NUMBER, NULL, NULL, count($valores), $valores)];
     $series = new DataSeries(DataSeries::TYPE_BARCHART, DataSeries::GROUPING_STANDARD, [0], $lblSerie, $xAxis, $val);
     if ($horizontal) $series->setPlotDirection(DataSeries::DIRECTION_BAR);
     $layout = new Layout(); $layout->setShowVal(true);
-    $plot = new PlotArea($layout, [$series]);
-    $legend = new Legend(Legend::POSITION_BOTTOM);
-    $chart = new Chart('bar_'.uniqid(), new Title($titulo), $legend, $plot, true, 0, NULL, NULL);
-    $chart->setTopLeftPosition($topLeft);
-    $chart->setBottomRightPosition($bottomRight);
+    $chart = new Chart('bar_' . uniqid(), new Title($titulo), new Legend(Legend::POSITION_BOTTOM), new PlotArea($layout, [$series]), true, 0, NULL, NULL);
+    $chart->setTopLeftPosition($tl); $chart->setBottomRightPosition($br);
     $sheet->addChart($chart);
 }
-
-function agregarGraficoDoughnut($sheet, $labels, $valores, $titulo, $topLeft, $bottomRight) {
-    $lbl = [new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_STRING, NULL, NULL, count($labels), $labels)];
-    $val = [new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_NUMBER, NULL, NULL, count($valores), $valores)];
-    $series = new DataSeries(DataSeries::TYPE_PIECHART, DataSeries::GROUPING_STACKED, [0], $lbl, $lbl, $val);
-    $layout = new Layout(); $layout->setShowVal(true); $layout->setShowPercent(true);
-    $plot = new PlotArea($layout, [$series]);
-    $legend = new Legend(Legend::POSITION_RIGHT);
-    $chart = new Chart('pie_'.uniqid(), new Title($titulo), $legend, $plot, true, 0, NULL, NULL);
-    $chart->setTopLeftPosition($topLeft);
-    $chart->setBottomRightPosition($bottomRight);
-    $sheet->addChart($chart);
-}
-
-function agregarGraficoPareto($sheet, $labels, $frecuencias, $acumulado, $titulo, $topLeft, $bottomRight) {
-    // Gráfico combinado: barras para frecuencia, línea para % acumulado
-    $lblSerieBar = [new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_STRING, NULL, NULL, 1, ['Frecuencia'])];
-    $lblSerieLine = [new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_STRING, NULL, NULL, 1, ['% Acumulado'])];
+function graficoPareto($sheet, $labels, $frec, $acum, $titulo, $tl, $br) {
+    if (empty($labels) || array_sum($frec) == 0) return;
+    $lblBar = [new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_STRING, NULL, NULL, 1, ['Frecuencia'])];
+    $lblLine = [new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_STRING, NULL, NULL, 1, ['% Acumulado'])];
     $xAxis = [new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_STRING, NULL, NULL, count($labels), $labels)];
-    $valBar = [new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_NUMBER, NULL, NULL, count($frecuencias), $frecuencias)];
-    $valLine = [new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_NUMBER, NULL, NULL, count($acumulado), $acumulado)];
-    
-    $seriesBar = new DataSeries(DataSeries::TYPE_BARCHART, DataSeries::GROUPING_STANDARD, [0], $lblSerieBar, $xAxis, $valBar);
-    $seriesLine = new DataSeries(DataSeries::TYPE_LINECHART, DataSeries::GROUPING_STANDARD, [0], $lblSerieLine, $xAxis, $valLine);
-    
+    $valBar = [new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_NUMBER, NULL, NULL, count($frec), $frec)];
+    $valLine = [new DataSeriesValues(DataSeriesValues::DATASERIES_TYPE_NUMBER, NULL, NULL, count($acum), $acum)];
+    $sBar = new DataSeries(DataSeries::TYPE_BARCHART, DataSeries::GROUPING_STANDARD, [0], $lblBar, $xAxis, $valBar);
+    $sLine = new DataSeries(DataSeries::TYPE_LINECHART, DataSeries::GROUPING_STANDARD, [0], $lblLine, $xAxis, $valLine);
     $layout = new Layout(); $layout->setShowVal(true);
-    $plot = new PlotArea($layout, [$seriesBar, $seriesLine]);
-    $legend = new Legend(Legend::POSITION_BOTTOM);
-    $chart = new Chart('pareto_'.uniqid(), new Title($titulo), $legend, $plot, true, 0, NULL, NULL);
-    $chart->setTopLeftPosition($topLeft);
-    $chart->setBottomRightPosition($bottomRight);
+    $chart = new Chart('par_' . uniqid(), new Title($titulo), new Legend(Legend::POSITION_BOTTOM), new PlotArea($layout, [$sBar, $sLine]), true, 0, NULL, NULL);
+    $chart->setTopLeftPosition($tl); $chart->setBottomRightPosition($br);
     $sheet->addChart($chart);
 }
 
-// ============================================================
-// FUNCIÓN PARA GENERAR UNA HOJA COMPLETA POR TIPO DE REPORTE
-// ============================================================
-function generarHojaDashboard($spreadsheet, $pdo, $sucursal_id, $tipo, $nombreSucursal, $horas_hombre) {
+/* ============================================================
+ * Construcción de filtros (parametrizados)
+ * ============================================================ */
+$sucursal_id = ($_GET['sucursal_id'] ?? '') !== '' ? (int) $_GET['sucursal_id'] : null;
+$tipo_filtro = $_GET['tipo'] ?? 'acto_inseguro';
+if (!in_array($tipo_filtro, ['acto_inseguro', 'accidente', 'enfermedad_cronica'], true)) $tipo_filtro = 'acto_inseguro';
+
+$mes = $_GET['mes'] ?? '';
+if (!preg_match('/^\d{4}-\d{2}$/', $mes)) $mes = '';
+$mesAnio = $mes ? (int) substr($mes, 0, 4) : null;
+$mesNum  = $mes ? (int) substr($mes, 5, 2) : null;
+
+$nombreSucursal = $sucursal_id ? (qcol($pdo, "SELECT nombre FROM sucursales WHERE id = ?", [$sucursal_id]) ?: '') : '';
+$horas_hombre = HORAS_HOMBRE_MES;
+
+/* Devuelve [sqlFragment, params] para sucursal + mes sobre alias r (reportes) */
+function filtroR(?int $suc, ?int $anio, ?int $num): array {
+    $sql = ''; $p = [];
+    if ($suc) { $sql .= " AND r.sucursal_id = ?"; $p[] = $suc; }
+    if ($anio) { $sql .= " AND YEAR(r.fecha) = ? AND MONTH(r.fecha) = ?"; $p[] = $anio; $p[] = $num; }
+    return [$sql, $p];
+}
+
+/* ============================================================
+ * HOJA: Actos / Accidentes
+ * ============================================================ */
+function hojaReportes($spreadsheet, PDO $pdo, ?int $suc, string $tipo, string $nombreSuc, $horas, ?int $anio, ?int $num) {
     $sheet = $spreadsheet->createSheet();
     $sheet->setTitle($tipo == 'acto_inseguro' ? 'Actos Inseguros' : 'Accidentes');
+    [$fR, $pR] = filtroR($suc, $anio, $num);
+    $pTipo = [$tipo];
 
-    $filtroSucursal = $sucursal_id ? "AND r.sucursal_id = $sucursal_id" : "";
-    $filtroTipo = "AND r.tipo = '$tipo'";
-    $filtroSucursalEmp = $sucursal_id ? "AND e.sucursal_id = $sucursal_id" : "";
-
-    // --- Título ---
-    $tituloHoja = 'DASHBOARD ' . ($tipo == 'acto_inseguro' ? 'ACTOS INSEGUROS' : 'ACCIDENTES') . ' - ' . ($sucursal_id ? "Sucursal: $nombreSucursal" : 'Todas las Sucursales');
-    $sheet->setCellValue('A1', $tituloHoja);
+    $titulo = 'DASHBOARD ' . ($tipo == 'acto_inseguro' ? 'ACTOS INSEGUROS' : 'ACCIDENTES') . ' - ' . ($suc ? "Sucursal: $nombreSuc" : 'Todas las Sucursales');
+    if ($anio) $titulo .= sprintf(' - %04d-%02d', $anio, $num);
+    $sheet->setCellValue('A1', $titulo);
     $sheet->mergeCells('A1:Z1');
     $sheet->getStyle('A1')->applyFromArray(['font'=>['bold'=>true,'size'=>14,'color'=>['rgb'=>'FFFFFF']],'fill'=>['fillType'=>Fill::FILL_SOLID,'startColor'=>['rgb'=>'0D6EFD']],'alignment'=>['horizontal'=>Alignment::HORIZONTAL_CENTER]]);
 
-    // --- KPIs (fila 3) ---
-    $total = $pdo->query("SELECT COUNT(*) FROM reportes r WHERE 1=1 $filtroSucursal $filtroTipo")->fetchColumn();
-    $mes = $pdo->query("SELECT COUNT(*) FROM reportes r WHERE MONTH(fecha)=MONTH(CURDATE()) AND YEAR(fecha)=YEAR(CURDATE()) $filtroSucursal $filtroTipo")->fetchColumn();
-    $empleados = $pdo->query("SELECT COUNT(*) FROM empleados e WHERE activo=1 $filtroSucursalEmp")->fetchColumn();
-    $promedio = $mes > 0 ? round($mes / date('d'), 1) : 0;
-
-    $kpis = [['Total Reportes',$total], ['Este Mes',$mes], ['Empleados',$empleados], ['Prom. Diario',$promedio]];
+    // KPIs
+    $total = qcol($pdo, "SELECT COUNT(*) FROM reportes r WHERE r.tipo = ?$fR", array_merge($pTipo, $pR));
+    $empleados = $suc ? qcol($pdo, "SELECT COUNT(*) FROM empleados e WHERE activo=1 AND e.sucursal_id = ?", [$suc]) : qcol($pdo, "SELECT COUNT(*) FROM empleados WHERE activo=1");
+    $kpis = [['Total Reportes', $total], ['Empleados', $empleados]];
     if ($tipo == 'accidente') {
-        $dsa = 0;
-        $ultimo = $pdo->query("SELECT MAX(fecha) FROM reportes WHERE tipo='accidente' $filtroSucursal")->fetchColumn();
-        if ($ultimo) {
-            $hoy = new DateTime(); $fec = new DateTime($ultimo);
-            $dsa = $hoy->diff($fec)->days;
-        } else { $dsa = 'Sin datos'; }
+        $ultimo = qcol($pdo, "SELECT MAX(fecha) FROM reportes r WHERE r.tipo='accidente'" . ($suc ? " AND r.sucursal_id = ?" : ""), $suc ? [$suc] : []);
+        $dsa = 'Sin datos';
+        if ($ultimo) { $dsa = (new DateTime())->diff(new DateTime($ultimo))->days; }
         $kpis[] = ['DSA', $dsa];
-        if ($horas_hombre > 0) {
-            $accMes = $pdo->query("SELECT COUNT(*) FROM reportes r WHERE MONTH(fecha)=MONTH(CURDATE()) AND YEAR(fecha)=YEAR(CURDATE()) $filtroSucursal AND tipo='accidente'")->fetchColumn();
-            $tasaF = round(($accMes * 1000000) / $horas_hombre, 2);
-            $kpis[] = ['Tasa Frec.', $tasaF];
-            $diasPerdidos = $pdo->query("SELECT SUM(dias_perdidos) FROM reportes r WHERE MONTH(fecha)=MONTH(CURDATE()) AND YEAR(fecha)=YEAR(CURDATE()) $filtroSucursal AND tipo='accidente'")->fetchColumn();
-            $tasaG = round(($diasPerdidos * 1000000) / $horas_hombre, 2);
-            $kpis[] = ['Tasa Gravedad', $tasaG];
-        }
+        $diasIncap = qcol($pdo, "SELECT SUM(dias_perdidos) FROM reportes r WHERE r.tipo='accidente'$fR", $pR) ?: 0;
+        $kpis[] = ['Días Incap. (periodo)', $diasIncap];
     }
-    $colKPI = 'A';
+    $col = 'A';
     foreach ($kpis as $k) {
-        $sheet->setCellValue($colKPI.'3', $k[0]);
-        $sheet->setCellValue($colKPI.'4', $k[1]);
-        $sheet->getStyle($colKPI.'3:'.$colKPI.'4')->applyFromArray(['borders'=>['outline'=>['borderStyle'=>Border::BORDER_THIN]],'alignment'=>['horizontal'=>Alignment::HORIZONTAL_CENTER]]);
-        $sheet->getStyle($colKPI.'3')->getFont()->setBold(true);
-        $colKPI++;
+        $sheet->setCellValue($col . '3', $k[0])->setCellValue($col . '4', $k[1]);
+        $sheet->getStyle($col . '3:' . $col . '4')->applyFromArray(['borders'=>['outline'=>['borderStyle'=>Border::BORDER_THIN]],'alignment'=>['horizontal'=>Alignment::HORIZONTAL_CENTER]]);
+        $col++;
     }
 
-    // --- Tendencia 6 meses (fila 7) ---
-    $meses = []; $reportesPorMes = [];
-    for ($i=5; $i>=0; $i--) {
-        $fecha = date('Y-m-01', strtotime("-$i months"));
-        $meses[] = date('M Y', strtotime($fecha));
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM reportes r WHERE YEAR(fecha)=YEAR(?) AND MONTH(fecha)=MONTH(?) $filtroSucursal $filtroTipo");
-        $stmt->execute([$fecha, $fecha]);
-        $reportesPorMes[] = (int)$stmt->fetchColumn();
-    }
-    $sheet->fromArray($meses, NULL, 'A7');
-    $sheet->fromArray($reportesPorMes, NULL, 'B7');
-    agregarGraficoLinea($sheet, $meses, $reportesPorMes, 'Tendencia 6 meses', 'D7', 'L25');
-
-    // --- Comparativa Anual (fila 27) ---
-    $mesesAnio = []; $actual = []; $anterior = [];
-    for ($m=1; $m<=12; $m++) {
-        $mesesAnio[] = date('M', mktime(0,0,0,$m,1));
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM reportes r WHERE MONTH(fecha)=? AND YEAR(fecha)=YEAR(CURDATE()) $filtroSucursal $filtroTipo");
-        $stmt->execute([$m]); $actual[] = (int)$stmt->fetchColumn();
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM reportes r WHERE MONTH(fecha)=? AND YEAR(fecha)=YEAR(CURDATE())-1 $filtroSucursal $filtroTipo");
-        $stmt->execute([$m]); $anterior[] = (int)$stmt->fetchColumn();
-    }
-    $sheet->fromArray($mesesAnio, NULL, 'A27');
-    $sheet->fromArray($actual, NULL, 'B27');
-    $sheet->fromArray($anterior, NULL, 'C27');
-    agregarGraficoLinea($sheet, $mesesAnio, $actual, 'Comparativa Anual (Actual)', 'E27', 'M45', 'Actual');
-    // Nota: En Excel no es trivial poner dos líneas en un mismo gráfico con la API simple; se puede hacer con DataSeries. Por simplicidad, se agrega una segunda línea manualmente si se desea, pero omitimos para no complicar.
-
-    // --- Catálogo (Doughnut) (col N, fila 7) ---
+    // Catálogo (solo con incidencia)
     if ($tipo == 'acto_inseguro') {
-        $catData = $pdo->query("SELECT a.descripcion, COUNT(r.id) as total FROM actos_inseguros a LEFT JOIN reportes r ON a.id=r.acto_inseguro_id $filtroSucursal WHERE a.activo=1 AND (r.tipo IS NULL OR r.tipo='acto_inseguro') GROUP BY a.id ORDER BY total DESC")->fetchAll();
+        $cat = q($pdo, "SELECT a.descripcion, COUNT(r.id) total FROM actos_inseguros a LEFT JOIN reportes r ON a.id=r.acto_inseguro_id$fR AND r.tipo='acto_inseguro' WHERE a.activo=1 GROUP BY a.id HAVING total>0 ORDER BY total DESC", $pR);
     } else {
-        $catData = $pdo->query("SELECT t.descripcion, COUNT(r.id) as total FROM tipos_accidente t LEFT JOIN reportes r ON t.id=r.accidente_id $filtroSucursal WHERE t.activo=1 AND (r.tipo IS NULL OR r.tipo='accidente') GROUP BY t.id ORDER BY total DESC")->fetchAll();
+        $cat = q($pdo, "SELECT t.descripcion, COUNT(r.id) total FROM tipos_accidente t LEFT JOIN reportes r ON t.id=r.accidente_id$fR AND r.tipo='accidente' WHERE t.activo=1 GROUP BY t.id HAVING total>0 ORDER BY total DESC", $pR);
     }
-    $catLabels = []; $catValores = [];
-    $totalCat = count($catData);
-    if ($totalCat == 0) {
-        $catLabels = ['Sin datos']; $catValores = [0];
-    } else {
-        $top = array_slice($catData, 0, 8);
-        $resto = array_slice($catData, 8);
-        foreach ($top as $row) { $catLabels[] = $row['descripcion']; $catValores[] = (int)$row['total']; }
-        if (!empty($resto)) {
-            $suma = array_sum(array_column($resto, 'total'));
-            if ($suma > 0) { $catLabels[] = 'Otros (' . count($resto) . ')'; $catValores[] = $suma; }
-        }
-    }
-    $sheet->fromArray($catLabels, NULL, 'N7');
-    $sheet->fromArray($catValores, NULL, 'O7');
-    agregarGraficoDoughnut($sheet, $catLabels, $catValores, ($tipo=='acto_inseguro'?'Actos':'Tipos Accidente'), 'Q7', 'X25');
+    $catLabels = array_column($cat, 'descripcion');
+    $catData = array_map('intval', array_column($cat, 'total'));
+    $sheet->fromArray(['Concepto', 'Total'], NULL, 'A6');
+    $row = 7;
+    foreach ($cat as $c) { $sheet->setCellValue('A' . $row, $c['descripcion'])->setCellValue('B' . $row, (int)$c['total']); $row++; }
+    graficoBarras($sheet, $catLabels, $catData, ($tipo == 'acto_inseguro' ? 'Actos Inseguros' : 'Tipos de Accidente'), 'D6', 'L26', true);
 
-    // --- Hora del día (col N, fila 27) ---
-    $horas = []; $horaData = array_fill(0,24,0);
-    for ($h=0;$h<24;$h++) $horas[] = sprintf('%02d:00',$h);
-    $resH = $pdo->query("SELECT HOUR(hora) as h, COUNT(*) as total FROM reportes r WHERE 1=1 $filtroSucursal $filtroTipo GROUP BY h");
-    foreach ($resH as $row) $horaData[(int)$row['h']] = (int)$row['total'];
-    $sheet->fromArray($horas, NULL, 'N27');
-    $sheet->fromArray($horaData, NULL, 'O27');
-    agregarGraficoBarras($sheet, $horas, $horaData, 'Reportes por Hora', 'Q27', 'X45');
-
-    // --- Días de la semana (fila 47) ---
-    $diasFull = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
-    $diasData = array_fill(0,7,0);
-    $resD = $pdo->query("SELECT DAYOFWEEK(fecha) as dia, COUNT(*) as total FROM reportes r WHERE 1=1 $filtroSucursal $filtroTipo GROUP BY dia");
-    foreach ($resD as $row) { $indice = ($row['dia']+5)%7; $diasData[$indice] = (int)$row['total']; }
-    $sheet->fromArray($diasFull, NULL, 'A47');
-    $sheet->fromArray($diasData, NULL, 'B47');
-    agregarGraficoBarras($sheet, $diasFull, $diasData, 'Por Día de la Semana', 'D47', 'L65');
-
-    // --- Severidad (solo accidentes) o Edad (actos) (col N, fila 47) ---
+    // Severidad / Edad
     if ($tipo == 'accidente') {
-        $sevLabels = ['Leve','Moderado','Grave','Fatal'];
-        $sevData = [0,0,0,0];
-        $map = ['leve'=>0,'moderado'=>1,'grave'=>2,'fatal'=>3];
-        $resS = $pdo->query("SELECT gravedad, COUNT(*) as total FROM reportes WHERE tipo='accidente' $filtroSucursal GROUP BY gravedad");
-        foreach ($resS as $row) if (isset($map[$row['gravedad']])) $sevData[$map[$row['gravedad']]] = (int)$row['total'];
-        $sheet->fromArray($sevLabels, NULL, 'N47');
-        $sheet->fromArray($sevData, NULL, 'O47');
-        agregarGraficoBarras($sheet, $sevLabels, $sevData, 'Severidad de Accidentes', 'Q47', 'X65');
+        $sevData = [0, 0, 0, 0]; $map = ['leve'=>0,'moderado'=>1,'grave'=>2,'fatal'=>3];
+        foreach (q($pdo, "SELECT gravedad, COUNT(*) total FROM reportes r WHERE r.tipo='accidente'$fR GROUP BY gravedad", $pR) as $r) {
+            if (isset($map[$r['gravedad']])) $sevData[$map[$r['gravedad']]] = (int)$r['total'];
+        }
+        graficoBarras($sheet, ['Leve','Moderado','Grave','Fatal'], $sevData, 'Severidad', 'N6', 'V26');
     } else {
-        $rangos = ['< 25','25-34','35-44','45-54','55+'];
         $edadData = [0,0,0,0,0];
-        $sqlE = "SELECT CASE WHEN TIMESTAMPDIFF(YEAR, e.fecha_nacimiento, CURDATE()) < 25 THEN 0 WHEN TIMESTAMPDIFF(YEAR, e.fecha_nacimiento, CURDATE()) BETWEEN 25 AND 34 THEN 1 WHEN TIMESTAMPDIFF(YEAR, e.fecha_nacimiento, CURDATE()) BETWEEN 35 AND 44 THEN 2 WHEN TIMESTAMPDIFF(YEAR, e.fecha_nacimiento, CURDATE()) BETWEEN 45 AND 54 THEN 3 ELSE 4 END as rango, COUNT(DISTINCT e.id) as total FROM empleados e JOIN reportes r ON e.id=r.empleado_id WHERE e.fecha_nacimiento IS NOT NULL $filtroSucursal $filtroTipo GROUP BY rango";
-        $resE = $pdo->query($sqlE);
-        foreach ($resE as $row) $edadData[$row['rango']] = (int)$row['total'];
-        $sheet->fromArray($rangos, NULL, 'N47');
-        $sheet->fromArray($edadData, NULL, 'O47');
-        agregarGraficoBarras($sheet, $rangos, $edadData, 'Distribución por Edad', 'Q47', 'X65');
+        $sqlE = "SELECT CASE WHEN TIMESTAMPDIFF(YEAR,e.fecha_nacimiento,CURDATE())<25 THEN 0 WHEN TIMESTAMPDIFF(YEAR,e.fecha_nacimiento,CURDATE()) BETWEEN 25 AND 34 THEN 1 WHEN TIMESTAMPDIFF(YEAR,e.fecha_nacimiento,CURDATE()) BETWEEN 35 AND 44 THEN 2 WHEN TIMESTAMPDIFF(YEAR,e.fecha_nacimiento,CURDATE()) BETWEEN 45 AND 54 THEN 3 ELSE 4 END rango, COUNT(DISTINCT e.id) total FROM empleados e JOIN reportes r ON e.id=r.empleado_id WHERE e.fecha_nacimiento IS NOT NULL AND r.tipo='acto_inseguro'$fR GROUP BY rango";
+        foreach (q($pdo, $sqlE, $pR) as $r) $edadData[$r['rango']] = (int)$r['total'];
+        graficoBarras($sheet, ['< 25','25-34','35-44','45-54','55+'], $edadData, 'Distribución por Edad', 'N6', 'V26');
     }
 
-    // --- Pareto (fila 67) ---
+    // Pareto
     if ($tipo == 'acto_inseguro') {
-        $paretoData = $pdo->query("SELECT a.descripcion, COUNT(r.id) as total FROM actos_inseguros a LEFT JOIN reportes r ON a.id=r.acto_inseguro_id $filtroSucursal WHERE a.activo=1 AND (r.tipo IS NULL OR r.tipo='acto_inseguro') GROUP BY a.id ORDER BY total DESC LIMIT 10")->fetchAll();
+        $par = q($pdo, "SELECT a.descripcion, COUNT(r.id) total FROM actos_inseguros a LEFT JOIN reportes r ON a.id=r.acto_inseguro_id$fR AND r.tipo='acto_inseguro' WHERE a.activo=1 GROUP BY a.id HAVING total>0 ORDER BY total DESC LIMIT 10", $pR);
     } else {
-        $paretoData = $pdo->query("SELECT t.descripcion, COUNT(r.id) as total FROM tipos_accidente t LEFT JOIN reportes r ON t.id=r.accidente_id $filtroSucursal WHERE t.activo=1 AND (r.tipo IS NULL OR r.tipo='accidente') GROUP BY t.id ORDER BY total DESC LIMIT 10")->fetchAll();
+        $par = q($pdo, "SELECT t.descripcion, COUNT(r.id) total FROM tipos_accidente t LEFT JOIN reportes r ON t.id=r.accidente_id$fR AND r.tipo='accidente' WHERE t.activo=1 GROUP BY t.id HAVING total>0 ORDER BY total DESC LIMIT 10", $pR);
     }
-    $paretoLabels = array_column($paretoData, 'descripcion');
-    $paretoFrecuencias = array_column($paretoData, 'total');
-    $totalPareto = array_sum($paretoFrecuencias);
-    $paretoAcum = [];
-    $acum = 0;
-    foreach ($paretoFrecuencias as $val) {
-        $acum += $val;
-        $paretoAcum[] = $totalPareto > 0 ? round(($acum / $totalPareto) * 100, 1) : 0;
-    }
-    $sheet->fromArray($paretoLabels, NULL, 'A67');
-    $sheet->fromArray($paretoFrecuencias, NULL, 'B67');
-    $sheet->fromArray($paretoAcum, NULL, 'C67');
-    agregarGraficoPareto($sheet, $paretoLabels, $paretoFrecuencias, $paretoAcum, 'Diagrama de Pareto', 'E67', 'M85');
+    $parLabels = array_column($par, 'descripcion');
+    $parFrec = array_map('intval', array_column($par, 'total'));
+    $tot = array_sum($parFrec); $acum = 0; $parAcum = [];
+    foreach ($parFrec as $v) { $acum += $v; $parAcum[] = $tot > 0 ? round($acum / $tot * 100, 1) : 0; }
+    graficoPareto($sheet, $parLabels, $parFrec, $parAcum, 'Diagrama de Pareto', 'A28', 'L48');
 
-    // --- Top Departamentos (fila 87) ---
-    $deptos = $pdo->query("SELECT d.nombre, COUNT(r.id) as total FROM departamentos d LEFT JOIN reportes r ON d.id=r.departamento_id $filtroSucursal WHERE (r.tipo IS NULL OR r.tipo='$tipo') GROUP BY d.id ORDER BY total DESC LIMIT 5")->fetchAll();
-    $deptosLabels = array_column($deptos, 'nombre');
-    $deptosData = array_column($deptos, 'total');
-    $sheet->fromArray($deptosLabels, NULL, 'A87');
-    $sheet->fromArray($deptosData, NULL, 'B87');
-    agregarGraficoBarras($sheet, $deptosLabels, $deptosData, 'Top 5 Departamentos', 'D87', 'L105', true);
+    // Top Departamentos
+    $dep = q($pdo, "SELECT d.nombre, COUNT(r.id) total FROM departamentos d LEFT JOIN reportes r ON d.id=r.departamento_id$fR AND r.tipo=? GROUP BY d.id ORDER BY total DESC LIMIT 5", array_merge($pR, $pTipo));
+    graficoBarras($sheet, array_column($dep, 'nombre'), array_map('intval', array_column($dep, 'total')), 'Top 5 Departamentos', 'N28', 'V48', true);
 
-    // --- Top Sucursales (tabla) (col N, fila 87) ---
-    $topSuc = $pdo->query("SELECT s.nombre, COUNT(r.id) as total, ROUND(COUNT(r.id)/6,1) as prom FROM sucursales s LEFT JOIN reportes r ON s.id=r.sucursal_id $filtroSucursal WHERE s.activo=1 AND (r.tipo IS NULL OR r.tipo='$tipo') GROUP BY s.id ORDER BY total DESC LIMIT 5")->fetchAll();
-    $sheet->setCellValue('N86', 'Top 5 Sucursales');
-    $sheet->setCellValue('N87', 'Sucursal')->setCellValue('O87', 'Total')->setCellValue('P87', 'Prom.');
-    $fila = 88;
-    foreach ($topSuc as $s) {
-        $sheet->setCellValue('N'.$fila, $s['nombre'])->setCellValue('O'.$fila, $s['total'])->setCellValue('P'.$fila, $s['prom']);
-        $fila++;
-    }
-
-    // --- Top Empleados (tabla) (fila 107) ---
-    $topEmp = $pdo->query("SELECT e.numero_empleado, e.nombre, COUNT(r.id) as total FROM empleados e LEFT JOIN reportes r ON e.id=r.empleado_id $filtroSucursal WHERE e.activo=1 AND (r.tipo IS NULL OR r.tipo='$tipo') GROUP BY e.id ORDER BY total DESC LIMIT 5")->fetchAll();
-    $sheet->setCellValue('A107', 'Top 5 Empleados');
-    $sheet->setCellValue('A108', '#')->setCellValue('B108', 'Nombre')->setCellValue('C108', 'Total');
-    $fila = 109;
-    foreach ($topEmp as $e) {
-        $sheet->setCellValue('A'.$fila, $e['numero_empleado'])->setCellValue('B'.$fila, $e['nombre'])->setCellValue('C'.$fila, $e['total']);
-        $fila++;
-    }
-
-    // Autoajustar columnas
-    foreach (range('A','Z') as $c) $sheet->getColumnDimension($c)->setAutoSize(true);
+    foreach (range('A', 'V') as $c) $sheet->getColumnDimension($c)->setAutoSize(true);
 }
 
-// ============================================================
-// PROGRAMA PRINCIPAL
-// ============================================================
-$sucursal_id = $_GET['sucursal_id'] ?? '';
-$tipo_filtro = $_GET['tipo'] ?? 'acto_inseguro';
+/* ============================================================
+ * HOJA: Enfermedades Crónicas
+ * ============================================================ */
+function hojaEnfermedades($spreadsheet, PDO $pdo, ?int $suc, string $nombreSuc, ?int $anio, ?int $num) {
+    $sheet = $spreadsheet->createSheet();
+    $sheet->setTitle('Enfermedades Crónicas');
 
-$nombreSucursal = '';
-if ($sucursal_id) {
-    $stmt = $pdo->prepare("SELECT nombre FROM sucursales WHERE id = ?");
-    $stmt->execute([$sucursal_id]);
-    $nombreSucursal = $stmt->fetchColumn();
+    $fE = ''; $pE = [];
+    if ($suc) { $fE .= " AND e.sucursal_id = ?"; $pE[] = $suc; }
+    $fMes = ''; $pMes = [];
+    if ($anio) { $fMes .= " AND YEAR(ee.fecha_registro) = ? AND MONTH(ee.fecha_registro) = ?"; $pMes[] = $anio; $pMes[] = $num; }
+
+    $titulo = 'DASHBOARD ENFERMEDADES CRÓNICAS - ' . ($suc ? "Sucursal: $nombreSuc" : 'Todas las Sucursales');
+    if ($anio) $titulo .= sprintf(' - %04d-%02d', $anio, $num);
+    $sheet->setCellValue('A1', $titulo);
+    $sheet->mergeCells('A1:V1');
+    $sheet->getStyle('A1')->applyFromArray(['font'=>['bold'=>true,'size'=>14,'color'=>['rgb'=>'FFFFFF']],'fill'=>['fillType'=>Fill::FILL_SOLID,'startColor'=>['rgb'=>'198754']],'alignment'=>['horizontal'=>Alignment::HORIZONTAL_CENTER]]);
+
+    // KPIs
+    $totalEnf = qcol($pdo, "SELECT COUNT(DISTINCT ee.empleado_id) FROM empleado_enfermedad ee JOIN empleados e ON ee.empleado_id=e.id WHERE e.activo=1$fE$fMes", array_merge($pE, $pMes));
+    $activos = $suc ? qcol($pdo, "SELECT COUNT(*) FROM empleados e WHERE activo=1 AND e.sucursal_id=?", [$suc]) : qcol($pdo, "SELECT COUNT(*) FROM empleados WHERE activo=1");
+    $prev = $activos > 0 ? round($totalEnf / $activos * 100, 1) : 0;
+    foreach ([['Empleados c/ enfermedad', $totalEnf], ['Prevalencia %', $prev]] as $i => $k) {
+        $col = chr(65 + $i);
+        $sheet->setCellValue($col . '3', $k[0])->setCellValue($col . '4', $k[1]);
+        $sheet->getStyle($col . '3:' . $col . '4')->applyFromArray(['borders'=>['outline'=>['borderStyle'=>Border::BORDER_THIN]],'alignment'=>['horizontal'=>Alignment::HORIZONTAL_CENTER]]);
+    }
+
+    // Top 10 enfermedades
+    $top = q($pdo, "SELECT ec.nombre, COUNT(ee.empleado_id) total FROM enfermedades_cronicas ec JOIN empleado_enfermedad ee ON ec.id=ee.enfermedad_id JOIN empleados e ON ee.empleado_id=e.id AND e.activo=1 WHERE ec.activo=1$fE$fMes GROUP BY ec.id HAVING total>0 ORDER BY total DESC LIMIT 10", array_merge($pE, $pMes));
+    $sheet->fromArray(['Enfermedad', 'Empleados'], NULL, 'A6');
+    $row = 7;
+    foreach ($top as $t) { $sheet->setCellValue('A' . $row, $t['nombre'])->setCellValue('B' . $row, (int)$t['total']); $row++; }
+    graficoBarras($sheet, array_column($top, 'nombre'), array_map('intval', array_column($top, 'total')), 'Top 10 Enfermedades', 'D6', 'L26', true, 'Empleados');
+
+    // Por departamento
+    $dep = q($pdo, "SELECT d.nombre, COUNT(DISTINCT ee.empleado_id) total FROM departamentos d LEFT JOIN empleados e ON e.departamento_id=d.id AND e.activo=1" . ($suc ? " AND e.sucursal_id=$suc" : "") . " LEFT JOIN empleado_enfermedad ee ON ee.empleado_id=e.id$fMes WHERE d.activo=1 GROUP BY d.id HAVING total>0 ORDER BY total DESC", $pMes);
+    graficoBarras($sheet, array_column($dep, 'nombre'), array_map('intval', array_column($dep, 'total')), 'Enfermedades por Departamento', 'N6', 'V26', true, 'Empleados');
+
+    // Por rango de edad
+    $edadData = [0,0,0,0,0];
+    $sqlEE = "SELECT CASE WHEN TIMESTAMPDIFF(YEAR,e.fecha_nacimiento,CURDATE())<25 THEN 0 WHEN TIMESTAMPDIFF(YEAR,e.fecha_nacimiento,CURDATE()) BETWEEN 25 AND 34 THEN 1 WHEN TIMESTAMPDIFF(YEAR,e.fecha_nacimiento,CURDATE()) BETWEEN 35 AND 44 THEN 2 WHEN TIMESTAMPDIFF(YEAR,e.fecha_nacimiento,CURDATE()) BETWEEN 45 AND 54 THEN 3 ELSE 4 END rango, COUNT(DISTINCT e.id) total FROM empleados e JOIN empleado_enfermedad ee ON ee.empleado_id=e.id WHERE e.activo=1 AND e.fecha_nacimiento IS NOT NULL$fE$fMes GROUP BY rango";
+    foreach (q($pdo, $sqlEE, array_merge($pE, $pMes)) as $r) $edadData[$r['rango']] = (int)$r['total'];
+    graficoBarras($sheet, ['< 25','25-34','35-44','45-54','55+'], $edadData, 'Enfermedades por Rango de Edad', 'A28', 'L48');
+
+    foreach (range('A', 'V') as $c) $sheet->getColumnDimension($c)->setAutoSize(true);
 }
 
-$horas_hombre = HORAS_HOMBRE_MES;
-
+/* ============================================================
+ * PROGRAMA PRINCIPAL — genera solo la hoja del tipo seleccionado
+ * ============================================================ */
 $spreadsheet = new Spreadsheet();
 $spreadsheet->removeSheetByIndex(0);
 
-generarHojaDashboard($spreadsheet, $pdo, $sucursal_id, 'acto_inseguro', $nombreSucursal, $horas_hombre);
-generarHojaDashboard($spreadsheet, $pdo, $sucursal_id, 'accidente', $nombreSucursal, $horas_hombre);
-
-// Hoja comparativa
-$sheetComp = $spreadsheet->createSheet();
-$sheetComp->setTitle('Comparativa');
-$compLabels = []; $compActos = []; $compAccidentes = [];
-$sqlComp = "
-    SELECT 'Acto' as tipo, a.descripcion as item, 
-           SUM(CASE WHEN r.tipo='acto_inseguro' THEN 1 ELSE 0 END) as actos,
-           SUM(CASE WHEN r.tipo='accidente' THEN 1 ELSE 0 END) as accidentes
-    FROM actos_inseguros a
-    LEFT JOIN reportes r ON a.id = r.acto_inseguro_id ".($sucursal_id ? "AND r.sucursal_id=$sucursal_id" : "")."
-    WHERE a.activo=1 GROUP BY a.id
-    UNION ALL
-    SELECT 'Accid' as tipo, t.descripcion as item,
-           SUM(CASE WHEN r.tipo='acto_inseguro' THEN 1 ELSE 0 END) as actos,
-           SUM(CASE WHEN r.tipo='accidente' THEN 1 ELSE 0 END) as accidentes
-    FROM tipos_accidente t
-    LEFT JOIN reportes r ON t.id = r.accidente_id ".($sucursal_id ? "AND r.sucursal_id=$sucursal_id" : "")."
-    WHERE t.activo=1 GROUP BY t.id
-    ORDER BY actos+accidentes DESC LIMIT 10";
-$resComp = $pdo->query($sqlComp);
-foreach ($resComp as $row) {
-    $compLabels[] = $row['item'];
-    $compActos[] = (int)$row['actos'];
-    $compAccidentes[] = (int)$row['accidentes'];
+if ($tipo_filtro === 'enfermedad_cronica') {
+    hojaEnfermedades($spreadsheet, $pdo, $sucursal_id, $nombreSucursal, $mesAnio, $mesNum);
+} else {
+    hojaReportes($spreadsheet, $pdo, $sucursal_id, $tipo_filtro, $nombreSucursal, $horas_hombre, $mesAnio, $mesNum);
 }
-$sheetComp->fromArray($compLabels, NULL, 'A1');
-$sheetComp->fromArray($compActos, NULL, 'B1');
-$sheetComp->fromArray($compAccidentes, NULL, 'C1');
-agregarGraficoBarras($sheetComp, $compLabels, $compActos, 'Actos Inseguros', 'E1', 'M20', false, 'Actos');
-agregarGraficoBarras($sheetComp, $compLabels, $compAccidentes, 'Accidentes', 'E22', 'M40', false, 'Accidentes');
 
 $writer = new Xlsx($spreadsheet);
 $writer->setIncludeCharts(true);
 header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-header('Content-Disposition: attachment;filename="dashboard_syso_completo_'.date('Ymd_His').'.xlsx"');
+header('Content-Disposition: attachment;filename="dashboard_syso_' . $tipo_filtro . '_' . date('Ymd_His') . '.xlsx"');
 $writer->save('php://output');
 exit;

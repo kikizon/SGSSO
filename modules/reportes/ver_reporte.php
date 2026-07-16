@@ -38,6 +38,12 @@ $evidencias = $pdo->prepare("SELECT * FROM reportes_evidencias WHERE reporte_id 
 $evidencias->execute([$id]);
 $evidencias = $evidencias->fetchAll();
 
+$firmados = $pdo->prepare("SELECT * FROM reportes_firmados WHERE reporte_id = ? ORDER BY creado_en DESC");
+$firmados->execute([$id]);
+$firmados = $firmados->fetchAll();
+$msg = $_GET['msg'] ?? '';
+$err = $_GET['err'] ?? '';
+
 function badgeGravedad($gravedad) {
     return match($gravedad) {
         'leve' => 'bg-success',
@@ -165,8 +171,49 @@ function badgeGravedad($gravedad) {
             </div>
         <?php endif; ?>
     </div>
+
+    <?php if ($msg): ?><div class="alert alert-success mt-3"><?= htmlspecialchars($msg) ?></div><?php endif; ?>
+<?php if ($err): ?><div class="alert alert-warning mt-3"><?= htmlspecialchars($err) ?></div><?php endif; ?>
+
+<div class="mt-4">
+    <h6><i class="fas fa-file-signature"></i> Documentos firmados (<?= count($firmados) ?>)</h6>
+    <p class="text-muted small mb-2">Descarga el PDF, recábalo firmado (empleado, SYSO y gerencia), escanéalo y súbelo aquí. Puedes subir varios.</p>
+
+    <form action="subir_firmado.php" method="post" enctype="multipart/form-data" class="row g-2 align-items-end mb-3">
+        <input type="hidden" name="csrf_token" value="<?= generate_csrf_token() ?>">
+        <input type="hidden" name="reporte_id" value="<?= $id ?>">
+        <div class="col-auto">
+            <input type="file" name="firmados[]" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png" multiple required>
+        </div>
+        <div class="col-auto">
+            <button type="submit" class="btn btn-sm btn-success"><i class="fas fa-upload"></i> Subir firmado(s)</button>
+        </div>
+    </form>
+
+    <?php if (empty($firmados)): ?>
+        <p class="text-muted">Aún no hay documentos firmados.</p>
+    <?php else: ?>
+        <ul class="list-group">
+            <?php foreach ($firmados as $f): ?>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <span>
+                    <i class="fas <?= $f['tipo'] === 'imagen' ? 'fa-image' : 'fa-file-pdf' ?>"></i>
+                    <a href="<?= UPLOAD_URL . htmlspecialchars($f['nombre_archivo']) ?>" target="_blank"><?= htmlspecialchars($f['nombre_original'] ?: $f['nombre_archivo']) ?></a>
+                    <small class="text-muted">· <?= date('d/m/Y H:i', strtotime($f['creado_en'])) ?></small>
+                </span>
+                <form action="eliminar_firmado.php" method="post" onsubmit="return confirm('¿Eliminar este documento firmado?');" class="m-0">
+                    <input type="hidden" name="csrf_token" value="<?= generate_csrf_token() ?>">
+                    <input type="hidden" name="firmado_id" value="<?= $f['id'] ?>">
+                    <button class="btn btn-sm btn-outline-danger"><i class="fas fa-trash"></i></button>
+                </form>
+            </li>
+            <?php endforeach; ?>
+        </ul>
+    <?php endif; ?>
+</div>
 </div>
 <div class="modal-footer">
     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
     <a href="editar.php?id=<?= $id ?>" class="btn btn-warning"><i class="fas fa-edit"></i> Editar</a>
+    <a href="generar_pdf_reporte.php?id=<?= $id ?>" class="btn btn-danger no-spinner"><i class="fas fa-file-pdf"></i> Descargar PDF</a>
 </div>

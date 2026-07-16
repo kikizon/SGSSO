@@ -1,7 +1,6 @@
 <?php
 require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
-require_once '../../includes/image_helper.php';
 
 $id = $_GET['id'] ?? 0;
 $stmt = $pdo->prepare("SELECT * FROM reportes WHERE id = ?");
@@ -56,29 +55,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $st7 = isset($_POST['st7']) ? 1 : 0;
     $costo_atencion = !empty($_POST['costo_atencion']) ? (float)$_POST['costo_atencion'] : null;
 
-    // === Doble autorización: usuario/supervisor solicitan; admin edita directo ===
-    require_once '../../includes/authorization.php';
-    if ($usuario_rol !== 'admin') 
-    {
-        if (autz_hay_pendiente($pdo, 'reportes', (int)$id)) {
-            redirect('modules/reportes/ver_reporte.php?id=' . (int)$id . '&err=' . urlencode('Ya hay una solicitud pendiente para este reporte.'));
-        }
-        if (!$empleado_id || !$departamento_id || !$sucursal_id || !$fecha || !$hora || !$catalogo_id) {
-            $error = 'Todos los campos obligatorios deben completarse.';
-        } else {
-            $acto_id      = ($tipo == 'acto_inseguro') ? $catalogo_id : null;
-            $accidente_id = ($tipo == 'accidente') ? $catalogo_id : null;
-            $atencion_id  = ($tipo == 'accidente' && $atencion_medica_id) ? $atencion_medica_id : null;
-            autz_crear_solicitud($pdo, $usuario_id, 'reportes', (int)$id, 'UPDATE', [
-                'empleado_id' => $empleado_id, 'departamento_id' => $departamento_id, 'sucursal_id' => $sucursal_id,
-                'fecha' => $fecha, 'hora' => $hora, 'acto_inseguro_id' => $acto_id, 'accidente_id' => $accidente_id,
-                'gravedad' => $gravedad, 'atencion_medica_id' => $atencion_id, 'observacion' => $observacion,
-                'dias_perdidos' => (int)$dias_perdidos, 'st7' => (int)$st7, 'costo_atencion' => $costo_atencion, 'tipo' => $tipo,
-            ], 'Edición de reporte #' . $id, (int)$sucursal_id);
-            redirect('modules/reportes/ver_reporte.php?id=' . (int)$id . '&msg=' . urlencode('Solicitud de edición enviada para autorización.'));
-        }
-    }
-
     if (!$empleado_id || !$departamento_id || !$sucursal_id || !$fecha || !$hora || !$catalogo_id) {
         $error = 'Todos los campos obligatorios deben completarse.';
     } else {
@@ -106,7 +82,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $nombre_archivo = uniqid() . '_' . preg_replace('/[^a-zA-Z0-9.]/', '_', $nombre_original);
                         $destino = UPLOAD_DIR . $nombre_archivo;
                         if (move_uploaded_file($_FILES['evidencias']['tmp_name'][$i], $destino)) {
-                            comprimir_imagen(UPLOAD_DIR . $nombre_archivo);
                             $stmt = $pdo->prepare("INSERT INTO reportes_evidencias (reporte_id, nombre_archivo, tipo) VALUES (?, ?, ?)");
                             $stmt->execute([$id, $nombre_archivo, $tipo_archivo]);
                         }
@@ -244,7 +219,6 @@ include '../../includes/header.php';
     <!-- Evidencias existentes -->
     <div class="col-12">
         <label class="form-label">Evidencias actuales</label>
-        <input type="hidden" id="csrfEvidencia" value="<?= generate_csrf_token() ?>">
         <div class="row g-2 mb-3" id="evidencias-existentes">
             <?php foreach ($evidencias_existentes as $ev): ?>
             <div class="col-6 col-md-3" id="ev-<?= $ev['id'] ?>">
@@ -273,23 +247,6 @@ include '../../includes/header.php';
 </form>
 
 <script>
-
-    function eliminarEvidencia(id) {
-    if (!confirm('¿Eliminar esta evidencia? No se puede deshacer.')) return;
-    const token = document.getElementById('csrfEvidencia')?.value
-               || document.querySelector('#reporteForm input[name="csrf_token"]')?.value || '';
-    const fd = new FormData();
-    fd.append('evidencia_id', id);
-    fd.append('csrf_token', token);
-    fetch('eliminar_evidencia.php', { method: 'POST', body: fd })
-        .then(r => r.json())
-        .then(d => {
-            if (d.ok) { document.getElementById('ev-' + id)?.remove(); }
-            else { alert(d.error || 'No se pudo eliminar la evidencia.'); }
-        })
-        .catch(() => alert('Error de red al eliminar la evidencia.'));
-}
-
 function cambiarTipo() { window.location.href = 'editar.php?id=<?= $id ?>&tipo=' + document.getElementById('tipo').value; }
 function toggleCamposAccidente() { document.getElementById('camposAccidente').style.display = document.getElementById('tipo').value === 'accidente' ? 'block' : 'none'; }
 toggleCamposAccidente();

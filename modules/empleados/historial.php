@@ -52,10 +52,13 @@ $sqlPendientes = "SELECT COUNT(DISTINCT c.id)
                         OR (ca.tipo_asignacion = 'sucursal' AND ca.entidad_id = ?)
                         OR (ca.tipo_asignacion = 'departamento' AND ca.entidad_id = ?)
                         OR (ca.tipo_asignacion = 'empleado' AND ca.entidad_id = ?)
-                    )
+              OR (ca.tipo_asignacion = 'excepto_empleado' AND NOT EXISTS (
+                    SELECT 1 FROM curso_asignaciones x
+                    WHERE x.curso_id = c.id AND x.tipo_asignacion = 'excepto_empleado' AND x.entidad_id = ?))
+          )
                     AND c.id NOT IN (SELECT curso_id FROM empleado_curso WHERE empleado_id = ?)";
 $stmtPendientes = $pdo->prepare($sqlPendientes);
-$stmtPendientes->execute([$empleado['sucursal_id'], $empleado['departamento_id'], $empleado_id, $empleado_id]);
+$stmtPendientes->execute([$empleado['sucursal_id'], $empleado['departamento_id'], $empleado_id, $empleado_id, $empleado_id]);
 $totalPendientes = $stmtPendientes->fetchColumn();
 ?>
 
