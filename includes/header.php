@@ -11,6 +11,13 @@ if (!isset($usuario_nombre) && isset($_SESSION['usuario_nombre']))
 
 $logoPath = 'assets/img/logo.png';
 $logoExists = file_exists(__DIR__ . '/../' . $logoPath);
+
+// Contador de autorizaciones pendientes (solo se usa para el admin)
+$autz_pendientes = 0;
+if (($usuario_rol ?? '') === 'admin' && file_exists(__DIR__ . '/authorization.php')) {
+    require_once __DIR__ . '/authorization.php';
+    $autz_pendientes = autz_contar_pendientes($pdo);
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -35,6 +42,16 @@ $logoExists = file_exists(__DIR__ . '/../' . $logoPath);
             }
         }
     </style>
+
+    <link rel="manifest" href="<?= BASE_URL ?>manifest.webmanifest">
+    <meta name="theme-color" content="#0d6efd">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="SYSO">
+    <link rel="apple-touch-icon" href="<?= BASE_URL ?>assets/pwa/apple-touch-icon.png">
+    <link rel="icon" href="<?= BASE_URL ?>assets/pwa/favicon-32.png" sizes="32x32">
+    
 </head>
 <body>
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
@@ -54,6 +71,23 @@ $logoExists = file_exists(__DIR__ . '/../' . $logoPath);
             <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                 <li class="nav-item">
                     <a class="nav-link" href="<?= BASE_URL ?>modules/dashboard/"><i class="fas fa-chart-pie"></i> Dashboard</a>
+                </li>
+
+                <?php if ($usuario_rol === 'admin' || $usuario_rol === 'supervisor'): ?>
+                <li class="nav-item">
+                    <a class="nav-link" href="<?= BASE_URL ?>modules/incapacidades/listar.php">
+                        <i class="fas fa-user-injured"></i> Incapacidades
+                    </a>
+                </li>
+                <?php endif; ?>
+
+                <li class="nav-item">
+                    <a class="nav-link" href="<?= BASE_URL ?>modules/autorizaciones/listar.php">
+                        <i class="fas fa-user-shield"></i> Autorizaciones
+                        <?php if (($usuario_rol ?? '') === 'admin' && $autz_pendientes > 0): ?>
+                            <span class="badge bg-danger"><?= $autz_pendientes ?></span>
+                        <?php endif; ?>
+                    </a>
                 </li>
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
