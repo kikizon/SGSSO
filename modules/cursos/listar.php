@@ -10,26 +10,32 @@ $estado = $_GET['estado'] ?? '1';
 $whereEstado = '';
 $params = [];
 if ($estado !== '') {
-    $whereEstado = "WHERE activo = ?";
+    $whereEstado = "WHERE c.activo = ?";
     $params[] = $estado;
 }
 
-$sql = "SELECT c.*, 
+$sql = "SELECT c.*, s.nombre AS suc_nombre, s.color AS suc_color,
                (SELECT COUNT(DISTINCT ec.empleado_id) 
                 FROM empleado_curso ec 
                 JOIN empleados e ON ec.empleado_id = e.id 
                 WHERE ec.curso_id = c.id AND e.activo = 1) as total_empleados
         FROM cursos c
+        LEFT JOIN sucursales s ON s.id = c.sucursal_id
         $whereEstado
         ORDER BY c.nombre";
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $cursos = $stmt->fetchAll();
 
+$sucursales = $pdo->query("SELECT id, nombre FROM sucursales WHERE activo = 1 ORDER BY nombre")->fetchAll();
+
 include '../../includes/header.php';
 ?>
 
 <h2><i class="fas fa-chalkboard-teacher"></i> Catálogo de Cursos/Formatos</h2>
+<?php if (($_GET['rep'] ?? '') === 'ok'): ?><div class="alert alert-success">Curso replicado. Revisa la copia en la sucursal destino.</div>
+<?php elseif (($_GET['rep'] ?? '') === 'dup'): ?><div class="alert alert-warning">Ya existe un curso con ese nombre en la sucursal destino.</div>
+<?php elseif (($_GET['rep'] ?? '') === 'err'): ?><div class="alert alert-danger">No se pudo replicar el curso.</div><?php endif; ?>
 <a href="crear.php" class="btn btn-primary mb-3"><i class="fas fa-plus"></i> Nuevo Curso/Formato</a>
 <!--<a href="plantilla.php" class="btn btn-outline-secondary mb-3 no-spinner"><i class="fas fa-download"></i> Plantilla CSV</a>-->
 <a href="importar.php" class="btn btn-success mb-3"><i class="fas fa-upload"></i> Importar CSV</a>
@@ -56,18 +62,26 @@ include '../../includes/header.php';
 <div class="table-responsive">
     <table class="table table-striped">
         <thead>
-            <tr><th>Nombre</th><th>Descripción</th><th>Empleados</th><th>Estado</th><th>Acciones</th></tr>
+            <tr><th>Nombre</th><th>Sucursal</th><th>Descripción</th><th>Empleados</th><th>Estado</th><th>Acciones</th></tr>
         </thead>
         <tbody>
             <?php foreach ($cursos as $c): ?>
             <tr>
                 <td><?= htmlspecialchars($c['nombre']) ?></td>
+                <td>
+                    <?php if (!empty($c['sucursal_id'])): ?>
+                        <span class="badge" style="background-color: <?= htmlspecialchars($c['suc_color'] ?: '#0dcaf0') ?>; color:#fff;"><i class="fas fa-store"></i> <?= htmlspecialchars($c['suc_nombre']) ?></span>
+                    <?php else: ?>
+                        <span class="badge bg-secondary">Todas</span>
+                    <?php endif; ?>
+                </td>
                 <td><?= htmlspecialchars($c['descripcion'] ?? '—') ?></td>
                 <td><?= $c['total_empleados'] > 0 ? '<span class="badge bg-info">'.$c['total_empleados'].'</span>' : '<span class="text-muted">—</span>' ?></td>
                 <td><?= $c['activo'] ? '<span class="badge bg-success">Activo</span>' : '<span class="badge bg-danger">Inactivo</span>' ?></td>
                 <td>
                     <button class="btn btn-sm btn-outline-info ver-cobertura" data-id="<?= $c['id'] ?>" data-nombre="<?= htmlspecialchars($c['nombre']) ?>" title="Ver cobertura"><i class="fas fa-chart-pie"></i></button>
                     <a href="editar.php?id=<?= $c['id'] ?>" class="btn btn-sm btn-warning" title="Editar"><i class="fas fa-edit"></i></a>
+                    <button class="btn btn-sm btn-outline-primary btn-replicar" data-id="<?= $c['id'] ?>" data-nombre="<?= htmlspecialchars($c['nombre']) ?>" title="Replicar en otra sucursal"><i class="fas fa-copy"></i></button>
                     <a href="eliminar.php?id=<?= $c['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('¿Eliminar este curso/formato?')" title="Eliminar"><i class="fas fa-trash"></i></a>
                 </td>
             </tr>
@@ -75,6 +89,44 @@ include '../../includes/header.php';
         </tbody>
     </table>
 </div>
+
+<!-- Modal para Replicar curso en otra sucursal -->
+<div class="modal fade" id="replicarModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <form class="modal-content" method="post" action="replicar.php">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">Replicar en otra sucursal</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" name="curso_id" id="rep_curso_id">
+                <p class="mb-2">Curso/Formato: <strong id="rep_curso_nombre"></strong></p>
+                <label class="form-label">Sucursal destino</label>
+                <select name="sucursal_destino" class="form-select" required>
+                    <option value="">Seleccione…</option>
+                    <?php foreach ($sucursales as $s): ?>
+                        <option value="<?= $s['id'] ?>"><?= htmlspecialchars($s['nombre']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <small class="text-muted d-block mt-2">Se crea una copia del curso (nombre, descripción, vigencia) apuntando a esa sucursal. El alcance de <strong>departamento</strong> se conserva; el de <strong>empleados específicos / excepto</strong> no se copia (esos empleados son de la sucursal original), y la copia queda en "Todos" dentro de la sucursal destino.</small>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-copy"></i> Replicar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener('click', function (e) {
+    const b = e.target.closest('.btn-replicar');
+    if (!b) return;
+    document.getElementById('rep_curso_id').value = b.dataset.id;
+    document.getElementById('rep_curso_nombre').textContent = b.dataset.nombre;
+    new bootstrap.Modal(document.getElementById('replicarModal')).show();
+});
+</script>
 
 <!-- Modal para Cobertura del Curso -->
 <div class="modal fade" id="coberturaModal" tabindex="-1" aria-hidden="true">

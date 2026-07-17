@@ -81,6 +81,10 @@ if ($tipo_asignacion === 'todos') {
     $condicionDeben = $ids !== '' ? "e.id IN ($ids)" : '0=1';
 }
 
+// Sucursal a nivel de curso
+$condSucCurso = !empty($curso['sucursal_id']) ? "e.sucursal_id = " . (int)$curso['sucursal_id'] : "1=1";
+$condicionDeben = "($condSucCurso) AND ($condicionDeben)";
+
 // Empleados que YA tomaron el curso (con marca de requerido)
 $paramsTomaron = array_merge([$curso_id], $paramsBase);
 $sqlTomaron = "SELECT e.id, e.numero_empleado, e.nombre, d.nombre as departamento, s.nombre as sucursal, MAX(ec.fecha_realizacion) as ultima_fecha,
@@ -103,9 +107,10 @@ $sqlNoTomaron = "SELECT e.id, e.numero_empleado, e.nombre, d.nombre as departame
                  FROM empleados e
                  JOIN departamentos d ON e.departamento_id = d.id
                  JOIN sucursales s ON e.sucursal_id = s.id
-                 WHERE e.id NOT IN (SELECT empleado_id FROM empleado_curso WHERE curso_id = ?) $whereSQL
+                 WHERE e.id NOT IN (SELECT empleado_id FROM empleado_curso WHERE curso_id = ?)
+                   AND ($condicionDeben) $whereSQL
                  ORDER BY requerido DESC, e.nombre";
-$stmtNoTomaron = $pdo->prepare($sqlNoTomaron);
+                 $stmtNoTomaron = $pdo->prepare($sqlNoTomaron);
 $stmtNoTomaron->execute($paramsNoTomaron);
 $noTomaron = $stmtNoTomaron->fetchAll();
 

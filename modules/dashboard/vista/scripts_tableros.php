@@ -38,15 +38,12 @@ document.addEventListener('DOMContentLoaded', function () {
         options: { responsive: true, maintainAspectRatio: false, scales: { r: { min: 60, max: 100, ticks: { stepSize: 10 } } }, plugins: { legend: { display: false } } }
     });
 
-    // Por departamento (barras horizontales coloreadas)
-    (function () {
-        const data = <?= json_encode($datDep6s) ?>;
-        crearGrafico('dep6sChart', {
-            type: 'bar',
-            data: { labels: <?= json_encode($lblDep6s) ?>, datasets: [{ label: 'Cumplimiento %', data: data, backgroundColor: data.map(colorPorValor) }] },
-            options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' } } }, plugins: { legend: { display: false } } }
-        });
-    })();
+    // Por departamento (radar, igual que por categoría)
+    crearGrafico('dep6sChart', {
+        type: 'radar',
+        data: { labels: <?= json_encode($lblDep6s) ?>, datasets: [{ label: 'Cumplimiento %', data: <?= json_encode($datDep6s) ?>, backgroundColor: 'rgba(25,135,84,0.2)', borderColor: '#198754', borderWidth: 2 }] },
+        options: { responsive: true, maintainAspectRatio: false, scales: { r: { min: 60, max: 100, ticks: { stepSize: 10 } } }, plugins: { legend: { display: false } } }
+    });
 
 <?php elseif ($tablero === 'cursos'): ?>
 

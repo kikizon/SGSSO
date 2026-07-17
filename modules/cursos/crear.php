@@ -14,6 +14,7 @@ $departamentos = $pdo->query("SELECT id, nombre FROM departamentos WHERE activo 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $nombre = trim($_POST['nombre'] ?? '');
     $descripcion = trim($_POST['descripcion'] ?? '');
+    $curso_sucursal_id = ($_POST['curso_sucursal_id'] ?? '') !== '' ? (int)$_POST['curso_sucursal_id'] : null;
     $vigencia_meses = ($_POST['vigencia_meses'] ?? '') !== '' ? max(1, (int)$_POST['vigencia_meses']) : null;
     $tipo_asignacion = $_POST['tipo_asignacion'] ?? 'todos';
     if (!in_array($tipo_asignacion, ['todos','sucursal','departamento','empleado','excepto_empleado'], true)) { $tipo_asignacion = 'todos'; }
@@ -25,8 +26,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $pdo->beginTransaction();
         try {
-            $stmt = $pdo->prepare("INSERT INTO cursos (nombre, descripcion, vigencia_meses) VALUES (?, ?, ?)");
-            $stmt->execute([$nombre, $descripcion, $vigencia_meses]);
+            $stmt = $pdo->prepare("INSERT INTO cursos (nombre, descripcion, sucursal_id, vigencia_meses) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$nombre, $descripcion, $curso_sucursal_id, $vigencia_meses]);
             $curso_id = $pdo->lastInsertId();
 
             // Guardar asignaciones
@@ -80,6 +81,16 @@ include '../../includes/header.php';
                     <div class="mb-3 form-check">
                         <input type="checkbox" name="obligatorio" id="obligatorio" class="form-check-input" value="1" <?= isset($_POST['obligatorio']) ? 'checked' : '' ?>>
                         <label for="obligatorio" class="form-check-label">Curso/formato obligatorio?</label>
+                    </div>
+                    <div class="mb-3">
+                        <label>Sucursal del curso</label>
+                        <select name="curso_sucursal_id" class="form-select">
+                            <option value="">Todas las sucursales</option>
+                            <?php foreach ($sucursales as $s): ?>
+                                <option value="<?= $s['id'] ?>" <?= (($_POST['curso_sucursal_id'] ?? '') == $s['id']) ? 'selected' : '' ?>><?= htmlspecialchars($s['nombre']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <small class="text-muted">El curso aplica solo a esa sucursal. El "Alcance" de la derecha refina <em>dentro</em> de ella (p. ej. "todos excepto" abarca solo esa sucursal).</small>
                     </div>
                     <div class="mb-3">
                        <label>Vigencia (meses)</label>

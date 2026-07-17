@@ -27,11 +27,12 @@ function condicionAlcance(array $asigs): string {
     if ($tipo === 'todos')        return '1=1';
     if ($tipo === 'sucursal')     return $ids !== '' ? "e.sucursal_id IN ($ids)" : '0=1';
     if ($tipo === 'departamento') return $ids !== '' ? "e.departamento_id IN ($ids)" : '0=1';
+    if ($tipo === 'excepto_empleado') return $ids !== '' ? "e.id NOT IN ($ids)" : '1=1';
     return $ids !== '' ? "e.id IN ($ids)" : '0=1';
 }
 
 // Cursos activos
-$cursos = $pdo->query("SELECT * FROM cursos WHERE activo = 1 ORDER BY nombre")->fetchAll();
+$cursos = $pdo->query("SELECT c.*, s.nombre AS suc_nombre, s.color AS suc_color FROM cursos c LEFT JOIN sucursales s ON s.id = c.sucursal_id WHERE c.activo = 1 ORDER BY c.nombre")->fetchAll();
 
 $coberturaCursos = [];          // por curso: nombre, alcance, vigentes, porVencer, vencidos, noTomaron, pct
 $sumAlcance = $sumVigentes = $sumPorVencer = $sumVencidos = $sumNoTomaron = 0;
@@ -42,6 +43,9 @@ foreach ($cursos as $curso) {
     $asigs->execute([$curso['id']]);
     $asigs = $asigs->fetchAll();
     $cond = condicionAlcance($asigs);
+    // Sucursal a nivel de curso: limita el alcance a esa sucursal (si tiene)
+    $condSuc = !empty($curso['sucursal_id']) ? "e.sucursal_id = " . (int)$curso['sucursal_id'] : "1=1";
+    $cond = "($condSuc) AND ($cond)";
 
     $vig = (array_key_exists('vigencia_meses', $curso) && $curso['vigencia_meses'] !== null)
         ? (int) $curso['vigencia_meses'] : null;
@@ -80,7 +84,9 @@ foreach ($cursos as $curso) {
     if ($vencidos > 0) $cursosConVencidos++;
 
     $coberturaCursos[] = [
-        'nombre' => $curso['nombre'], 'alcance' => $alcance, 'vigentes' => $vigentes,
+        'nombre' => $curso['nombre'], 'sucursal' => $curso['suc_nombre'] ?: 'Todas',
+        'sucursal_id' => $curso['sucursal_id'] ?? null, 'sucursal_color' => $curso['suc_color'] ?? null,
+        'alcance' => $alcance, 'vigentes' => $vigentes,
         'porVencer' => $porVencer, 'vencidos' => $vencidos, 'noTomaron' => $noTomaron, 'pct' => $pct,
         'vence' => $vig !== null,
     ];
@@ -92,11 +98,32 @@ foreach ($cursos as $curso) {
 $totalCursos       = count($cursos);
 $coberturaGlobal   = $sumAlcance > 0 ? round(($sumVigentes / $sumAlcance) * 100, 1) : 0;
 
+// Consolidado por NOMBRE (suma de todas las sucursales del mismo curso)
+$consolidado = [];
+foreach ($coberturaCursos as $c) {
+    $k = $c['nombre'];
+    if (!isset($consolidado[$k])) {
+        $consolidado[$k] = ['nombre' => $k, 'sucursales' => 0, 'alcance' => 0, 'vigentes' => 0, 'porVencer' => 0, 'vencidos' => 0, 'noTomaron' => 0];
+    }
+    $consolidado[$k]['sucursales'] += 1;
+    $consolidado[$k]['alcance']    += $c['alcance'];
+    $consolidado[$k]['vigentes']   += $c['vigentes'];
+    $consolidado[$k]['porVencer']  += $c['porVencer'];
+    $consolidado[$k]['vencidos']   += $c['vencidos'];
+    $consolidado[$k]['noTomaron']  += $c['noTomaron'];
+}
+foreach ($consolidado as &$cc) {
+    $cc['pct'] = $cc['alcance'] > 0 ? round(($cc['vigentes'] / $cc['alcance']) * 100, 1) : 0;
+}
+unset($cc);
+$consolidado = array_values($consolidado);
+usort($consolidado, fn($a, $b) => $a['pct'] <=> $b['pct']);
+
 // Orden para gráfica: peor cobertura primero (más accionable)
 $ordenCob = $coberturaCursos;
 usort($ordenCob, fn($a, $b) => $a['pct'] <=> $b['pct']);
 $ordenCob = array_slice($ordenCob, 0, 15);
-$lblCursos = array_column($ordenCob, 'nombre');
+$lblCursos = array_map(fn($c) => $c['nombre'] . (!empty($c['sucursal_id']) ? ' · ' . $c['sucursal'] : ''), $ordenCob);
 $datCursos = array_column($ordenCob, 'pct');
 if (empty($lblCursos)) { $lblCursos = ['Sin cursos']; $datCursos = [0]; }
 

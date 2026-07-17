@@ -11,6 +11,35 @@
 </div>
 
 <div class="row">
+    <div class="col-12 mb-4"><div class="card"><div class="card-header"><i class="fas fa-layer-group"></i> Consolidado por curso (todas las sucursales)</div>
+        <div class="card-body table-responsive">
+            <?php if (empty($consolidado)): ?>
+                <p class="text-muted mb-0">Sin cursos.</p>
+            <?php else: ?>
+            <table class="table table-sm table-hover">
+                <thead><tr><th>Curso/Formato</th><th class="text-center">Sucursales</th><th class="text-center">En alcance</th><th class="text-center">Vigentes</th><th class="text-center">Por vencer</th><th class="text-center">Vencidos</th><th class="text-center">Sin tomar</th><th class="text-center">Cobertura</th></tr></thead>
+                <tbody>
+                    <?php foreach ($consolidado as $c): ?>
+                    <tr>
+                        <td><?= htmlspecialchars($c['nombre']) ?></td>
+                        <td class="text-center"><?= $c['sucursales'] ?></td>
+                        <td class="text-center"><?= $c['alcance'] ?></td>
+                        <td class="text-center"><?= $c['vigentes'] ?></td>
+                        <td class="text-center"><?php if ($c['porVencer']>0): ?><span class="badge bg-warning text-dark"><?= $c['porVencer'] ?></span><?php else: ?>0<?php endif; ?></td>
+                        <td class="text-center"><?php if ($c['vencidos']>0): ?><span class="badge bg-danger"><?= $c['vencidos'] ?></span><?php else: ?>0<?php endif; ?></td>
+                        <td class="text-center"><?= $c['noTomaron'] ?></td>
+                        <td class="text-center"><span class="badge bg-<?= $c['pct'] >= 85 ? 'success' : ($c['pct'] >= 60 ? 'warning text-dark' : 'danger') ?>"><?= $c['pct'] ?>%</span></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+            <p class="text-muted small mb-0">Suma de todas las sucursales que comparten el mismo nombre de curso.</p>
+            <?php endif; ?>
+        </div>
+    </div></div>
+</div>
+
+<div class="row">
     <div class="col-md-8 mb-4"><div class="card"><div class="card-header">Cobertura por curso (15 con menor cobertura)</div><div class="card-body"><canvas id="cobCursosChart" style="height:380px;width:100%;"></canvas></div></div></div>
     <div class="col-md-4 mb-4"><div class="card h-100"><div class="card-header">Distribución de estatus</div><div class="card-body d-flex align-items-center justify-content-center"><div style="position:relative;width:100%;height:340px;"><canvas id="distCursosChart" style="display:block;width:100%;height:100%;"></canvas></div></div></div></div>
 </div>
@@ -26,7 +55,7 @@
                 <tbody>
                     <?php foreach ($atencion as $c): ?>
                     <tr>
-                        <td><?= htmlspecialchars($c['nombre']) ?></td>
+                        <td><?= htmlspecialchars($c['nombre']) ?> <?php if (!empty($c['sucursal_id'])): ?><span class="badge" style="background-color: <?= htmlspecialchars($c['sucursal_color'] ?? '#0dcaf0') ?>; color:#fff;"><?= htmlspecialchars($c['sucursal']) ?></span><?php endif; ?></td>
                         <td class="text-center"><?= $c['alcance'] ?></td>
                         <td class="text-center"><?= $c['vigentes'] ?></td>
                         <td class="text-center"><?php if ($c['porVencer']>0): ?><span class="badge bg-warning text-dark"><?= $c['porVencer'] ?></span><?php else: ?>0<?php endif; ?></td>

@@ -80,6 +80,10 @@ if ($tipo_asignacion === 'todos') {
     $condicionDeben = $ids !== '' ? "e.id IN ($ids)" : '0=1';
 }
 
+// Sucursal a nivel de curso: el alcance se limita a la sucursal del curso (si tiene)
+$condSucCurso = !empty($curso['sucursal_id']) ? "e.sucursal_id = " . (int)$curso['sucursal_id'] : "1=1";
+$condicionDeben = "($condSucCurso) AND ($condicionDeben)";
+
 $wherePendientes = '';
 $paramsTomaron = array_merge([$curso_id], $paramsBase);
 $paramsNoTomaron = array_merge([$curso_id], $paramsBase);
@@ -108,7 +112,8 @@ $sqlNoTomaron = "SELECT e.numero_empleado, e.nombre, d.nombre as departamento, s
                  FROM empleados e
                  JOIN departamentos d ON e.departamento_id = d.id
                  JOIN sucursales s ON e.sucursal_id = s.id
-                 WHERE e.id NOT IN (SELECT empleado_id FROM empleado_curso WHERE curso_id = ?) $whereSQL $wherePendientes
+                 WHERE e.id NOT IN (SELECT empleado_id FROM empleado_curso WHERE curso_id = ?)
+                   AND ($condicionDeben) $whereSQL $wherePendientes
                  ORDER BY e.nombre";
 $stmtNoTomaron = $pdo->prepare($sqlNoTomaron);
 $stmtNoTomaron->execute($paramsNoTomaron);
