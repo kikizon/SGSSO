@@ -24,31 +24,10 @@ $usuario_nombre = $usuario['nombre_completo'];
 $usuario_rol = $usuario['rol'];
 $usuario_sucursal_id = $usuario['sucursal_id'];
 
-// --- Multi-sucursal: lista de sucursales asignadas al usuario ---
-// Fuente de verdad: tabla usuario_sucursales. Fallback: columna usuarios.sucursal_id.
-$usuario_sucursales = [];
-try {
-    $qs = $pdo->prepare("SELECT sucursal_id FROM usuario_sucursales WHERE usuario_id = ?");
-    $qs->execute([$usuario_id]);
-    $usuario_sucursales = array_map('intval', array_column($qs->fetchAll(), 'sucursal_id'));
-} catch (Throwable $e) {
-    $usuario_sucursales = [];
-}
-if (empty($usuario_sucursales) && $usuario_sucursal_id) {
-    $usuario_sucursales = [(int) $usuario_sucursal_id];
-}
-// Compatibilidad: "sucursal principal" = primera asignada (para código que aún usa $usuario_sucursal_id)
-if (empty($usuario_sucursal_id) && !empty($usuario_sucursales)) {
-    $usuario_sucursal_id = $usuario_sucursales[0];
-}
-// Cadena segura para cláusulas IN (...). Si no hay ninguna, '0' = ninguna.
-$usuario_sucursales_sql = !empty($usuario_sucursales) ? implode(',', array_map('intval', $usuario_sucursales)) : '0';
-
-// Si es supervisor con EXACTAMENTE UNA sucursal, forzar sucursal_id en GET/POST (comportamiento previo).
-// Con varias sucursales no se fuerza: el scoping usa $usuario_sucursales / $usuario_sucursales_sql.
-if ($usuario_rol === 'supervisor' && count($usuario_sucursales) === 1) {
-    $_GET['sucursal_id'] = $usuario_sucursales[0];
-    $_POST['sucursal_id'] = $usuario_sucursales[0];
+// Si es supervisor, forzar sucursal_id en GET/POST
+if ($usuario_rol === 'supervisor' && $usuario_sucursal_id) {
+    $_GET['sucursal_id'] = $usuario_sucursal_id;
+    $_POST['sucursal_id'] = $usuario_sucursal_id;
 }
 
 // --- Verificar si debe cambiar contraseña (primer login o expiración) ---
