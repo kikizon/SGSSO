@@ -33,7 +33,7 @@ $f_depto    = $_GET['departamento_id'] ?? '';
 // WHERE base (nivel auditoría)
 $where = ["a.estado = 'finalizada'", 'a.fecha BETWEEN ? AND ?'];
 $params = [$f_desde, $f_hasta];
-if (!$es_admin) { $where[] = 'a.sucursal_id = ?'; $params[] = $usuario_sucursal_id; }
+if (!$es_admin) { $where[] = "a.sucursal_id IN ($usuario_sucursales_sql)"; }
 elseif ($f_sucursal !== '') { $where[] = 'a.sucursal_id = ?'; $params[] = (int)$f_sucursal; }
 $where_sql = 'WHERE ' . implode(' AND ', $where);
 
@@ -101,8 +101,7 @@ $kpi = $st->fetch();
 if ($es_admin) {
     $sucursales = $pdo->query("SELECT id, nombre FROM sucursales WHERE activo = 1 ORDER BY nombre")->fetchAll();
 } else {
-    $sucursales = $pdo->prepare("SELECT id, nombre FROM sucursales WHERE id = ?");
-    $sucursales->execute([$usuario_sucursal_id]); $sucursales = $sucursales->fetchAll();
+    $sucursales = $pdo->query("SELECT id, nombre FROM sucursales WHERE activo = 1 AND id IN ($usuario_sucursales_sql) ORDER BY nombre")->fetchAll();
 }
 $departamentos = $pdo->query("SELECT DISTINCT d.id, d.nombre FROM departamentos d
                               JOIN criterios_6s_departamento cd ON cd.departamento_id = d.id

@@ -16,17 +16,15 @@
         </div>
 
         <!-- Sucursal (común, salvo supervisor) -->
-        <?php if ($usuario_rol !== 'supervisor'): ?>
         <div class="col-auto">
             <label class="form-label mb-0 small">Sucursal</label>
             <select name="sucursal_id" class="form-select form-select-sm" onchange="this.form.submit()">
-                <option value="">Todas</option>
+                <?php if ($usuario_rol === 'admin'): ?><option value="">Todas</option><?php endif; ?>
                 <?php foreach ($sucursales as $s): ?>
                     <option value="<?= $s['id'] ?>" <?= $sucursal_id == $s['id'] ? 'selected' : '' ?>><?= htmlspecialchars($s['nombre']) ?></option>
                 <?php endforeach; ?>
             </select>
         </div>
-        <?php else: ?><input type="hidden" name="sucursal_id" value="<?= $sucursal_id ?>"><?php endif; ?>
 
         <?php if ($tablero === 'seguridad'): ?>
             <div class="col-auto">

@@ -17,10 +17,9 @@ $es_admin = ($usuario_rol === 'admin');
 if ($es_admin) {
     $sucursales = $pdo->query("SELECT id, nombre FROM sucursales WHERE activo = 1 ORDER BY nombre")->fetchAll();
 } else {
-    $st = $pdo->prepare("SELECT id, nombre FROM sucursales WHERE id = ?");
-    $st->execute([$usuario_sucursal_id]); $sucursales = $st->fetchAll();
+    $sucursales = $pdo->query("SELECT id, nombre FROM sucursales WHERE activo = 1 AND id IN ($usuario_sucursales_sql) ORDER BY nombre")->fetchAll();
 }
-$f_sucursal = $es_admin ? ($_GET['sucursal_id'] ?? ($sucursales[0]['id'] ?? '')) : $usuario_sucursal_id;
+$f_sucursal = $es_admin ? ($_GET['sucursal_id'] ?? ($sucursales[0]['id'] ?? '')) : (in_array((int)($_GET['sucursal_id'] ?? 0), $usuario_sucursales, true) ? (int)$_GET['sucursal_id'] : ($usuario_sucursales[0] ?? ''));
 
 // Rango de semanas (por defecto: semana actual)
 $anio_d = (int)($_GET['anio_d'] ?? $anioAct); $sem_d = (int)($_GET['sem_d'] ?? $semAct);

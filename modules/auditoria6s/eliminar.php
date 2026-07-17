@@ -23,7 +23,7 @@ $aud = $stmt->fetch();
 if (!$aud) { redirect('modules/auditoria6s/listar.php'); }
 
 // Alcance por sucursal (supervisor)
-if (!$es_admin && $aud['sucursal_id'] != $usuario_sucursal_id) {
+if (!$es_admin && !in_array((int)$aud['sucursal_id'], $usuario_sucursales, true)) {
     redirect('modules/auditoria6s/listar.php');
 }
 

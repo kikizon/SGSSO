@@ -26,7 +26,7 @@ $anio_h = (int)($_GET['anio_h'] ?? $anioAct);
 $sem_h  = (int)($_GET['sem_h'] ?? $semAct);
 
 $where = []; $params = [];
-if (!$es_admin) { $where[] = "a.sucursal_id IN ($usuario_sucursales_sql)"; }
+if (!$es_admin) { $where[] = 'a.sucursal_id = ?'; $params[] = $usuario_sucursal_id; }
 elseif ($f_sucursal !== '') { $where[] = 'a.sucursal_id = ?'; $params[] = (int)$f_sucursal; }
 if ($f_estado !== '') { $where[] = 'a.estado = ?'; $params[] = $f_estado; }
 
@@ -72,7 +72,8 @@ $qs_filtros = http_build_query(array_filter([
 if ($es_admin) {
     $sucursales = $pdo->query("SELECT id, nombre FROM sucursales WHERE activo = 1 ORDER BY nombre")->fetchAll();
 } else {
-    $sucursales = $pdo->query("SELECT id, nombre FROM sucursales WHERE activo = 1 AND id IN ($usuario_sucursales_sql) ORDER BY nombre")->fetchAll();
+    $sucursales = $pdo->prepare("SELECT id, nombre FROM sucursales WHERE id = ?");
+    $sucursales->execute([$usuario_sucursal_id]); $sucursales = $sucursales->fetchAll();
 }
 
 // Helper para options de semana (1..53)

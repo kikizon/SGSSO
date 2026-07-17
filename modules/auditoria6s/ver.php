@@ -22,7 +22,7 @@ $stmt = $pdo->prepare("SELECT a.*, s.nombre AS sucursal, u.nombre_completo AS au
 $stmt->execute([$id]);
 $aud = $stmt->fetch();
 if (!$aud) { redirect('modules/auditoria6s/listar.php'); }
-if (!$es_admin && $aud['sucursal_id'] != $usuario_sucursal_id) { redirect('modules/auditoria6s/listar.php'); }
+if (!$es_admin && !in_array((int)$aud['sucursal_id'], $usuario_sucursales, true)) { redirect('modules/auditoria6s/listar.php'); }
 
 $dstmt = $pdo->prepare("SELECT ad.departamento_id, ad.evaluacion_total, d.nombre
                         FROM auditorias_6s_departamentos ad JOIN departamentos d ON d.id = ad.departamento_id

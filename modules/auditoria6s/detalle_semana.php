@@ -33,7 +33,7 @@ if ($es_admin) {
     $f_sucursal = ($_GET['sucursal_id'] ?? '') !== '' ? (int)$_GET['sucursal_id'] : '';
     $sucursales = $pdo->query("SELECT id, nombre FROM sucursales WHERE activo = 1 ORDER BY nombre")->fetchAll();
 } else {
-    $f_sucursal = (int)$usuario_sucursal_id; $sucursales = [];
+    $f_sucursal = in_array((int)($_GET['sucursal_id'] ?? 0), $usuario_sucursales, true) ? (int)$_GET['sucursal_id'] : (int)($usuario_sucursales[0] ?? 0); $sucursales = [];
 }
 
 $scope = "a.estado = 'finalizada'"; $pSuc = [];

@@ -40,8 +40,7 @@ if (!empty($buscar)) {
 
 // Multisucursal: no-admin solo su sucursal
 if ($usuario_rol !== 'admin') {
-    $whereEmpleados[] = "e.sucursal_id = ?";
-    $paramsBase[] = $usuario_sucursal_id;
+    $whereEmpleados[] = "e.sucursal_id IN ($usuario_sucursales_sql)";
 }
 
 $whereSQL = '';

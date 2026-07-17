@@ -7,10 +7,12 @@ require_once '../../includes/functions.php';
 // ============================================================
 $horas_hombre = HORAS_HOMBRE_MES;
 
-if ($usuario_rol === 'supervisor') 
+if ($usuario_rol !== 'admin') 
 {
-    $sucursal_id = $usuario_sucursal_id;
-    $sucursales = $pdo->query("SELECT id, nombre FROM sucursales WHERE id = $usuario_sucursal_id")->fetchAll();
+    $sucursales = $pdo->query("SELECT id, nombre FROM sucursales WHERE activo = 1 AND id IN ($usuario_sucursales_sql) ORDER BY nombre")->fetchAll();
+    $permitidas = array_map(fn($s) => (int)$s['id'], $sucursales);
+    $sel = ($_GET['sucursal_id'] ?? '') !== '' ? (int) $_GET['sucursal_id'] : 0;
+    $sucursal_id = in_array($sel, $permitidas, true) ? $sel : ($permitidas[0] ?? 0);
 } 
 else 
 {

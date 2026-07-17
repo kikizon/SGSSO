@@ -13,7 +13,7 @@ if ($id) {
     $stmt->execute([$id]);
     $auditoria = $stmt->fetch();
     if (!$auditoria) { redirect('modules/auditoria6s/listar.php'); }
-    if (!$es_admin && $auditoria['sucursal_id'] != $usuario_sucursal_id) { redirect('modules/auditoria6s/listar.php'); }
+    if (!$es_admin && !in_array((int)$auditoria['sucursal_id'], $usuario_sucursales, true)) { redirect('modules/auditoria6s/listar.php'); }
 }
 
 // ---- Pantalla de inicio: sucursal + semana ----
@@ -21,9 +21,7 @@ if (!$auditoria) {
     if ($es_admin) {
         $sucursales = $pdo->query("SELECT id, nombre FROM sucursales WHERE activo = 1 ORDER BY nombre")->fetchAll();
     } else {
-        $sucursales = $pdo->prepare("SELECT id, nombre FROM sucursales WHERE id = ?");
-        $sucursales->execute([$usuario_sucursal_id]);
-        $sucursales = $sucursales->fetchAll();
+        $sucursales = $pdo->query("SELECT id, nombre FROM sucursales WHERE activo = 1 AND id IN ($usuario_sucursales_sql) ORDER BY nombre")->fetchAll();
     }
     [$anioActual, $semActual] = s6_semana_actual();
     $anioSel = (int)($_GET['anio'] ?? $anioActual);

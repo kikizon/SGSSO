@@ -17,11 +17,11 @@ if (!in_array($tablero, ['seguridad', '6s', 'cursos'], true)) {
 }
 
 // --- Sucursal (común) ---
-if ($usuario_rol === 'supervisor') {
-    $sucursal_id = (int) $usuario_sucursal_id;
-    $st = $pdo->prepare("SELECT id, nombre FROM sucursales WHERE id = ?");
-    $st->execute([$sucursal_id]);
-    $sucursales = $st->fetchAll();
+if ($usuario_rol !== 'admin') {
+    $sucursales = $pdo->query("SELECT id, nombre FROM sucursales WHERE activo = 1 AND id IN ($usuario_sucursales_sql) ORDER BY nombre")->fetchAll();
+    $permitidas = array_map(fn($s) => (int)$s['id'], $sucursales);
+    $sel = ($_GET['sucursal_id'] ?? '') !== '' ? (int) $_GET['sucursal_id'] : 0;
+    $sucursal_id = in_array($sel, $permitidas, true) ? $sel : ($permitidas[0] ?? 0);
 } else {
     $sucursal_id = ($_GET['sucursal_id'] ?? '') !== '' ? (int) $_GET['sucursal_id'] : '';
     $sucursales = $pdo->query("SELECT id, nombre FROM sucursales WHERE activo = 1 ORDER BY nombre")->fetchAll();

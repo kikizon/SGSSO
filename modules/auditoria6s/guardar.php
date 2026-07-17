@@ -15,7 +15,7 @@ if ($accion === 'crear') {
     $sucursal_id = (int)($_POST['sucursal_id'] ?? 0);
     $anio = (int)($_POST['anio'] ?? 0);
     $semana = (int)($_POST['semana'] ?? 0);
-    if (!$es_admin) { $sucursal_id = (int)$usuario_sucursal_id; }
+    if (!$es_admin && !in_array((int)$sucursal_id, $usuario_sucursales, true)) { $sucursal_id = (int)($usuario_sucursales[0] ?? 0); }
 
     [$anioAct, ] = s6_semana_actual();
     if ($anio < 2020 || $anio > $anioAct + 1) $anio = $anioAct;
@@ -41,7 +41,7 @@ $stmt = $pdo->prepare("SELECT * FROM auditorias_6s WHERE id = ?");
 $stmt->execute([$auditoria_id]);
 $aud = $stmt->fetch();
 if (!$aud) { redirect('modules/auditoria6s/listar.php'); }
-if (!$es_admin && $aud['sucursal_id'] != $usuario_sucursal_id) { redirect('modules/auditoria6s/listar.php'); }
+if (!$es_admin && !in_array((int)$aud['sucursal_id'], $usuario_sucursales, true)) { redirect('modules/auditoria6s/listar.php'); }
 
 $depRows = $pdo->query("SELECT DISTINCT cd.departamento_id
                         FROM criterios_6s_departamento cd
