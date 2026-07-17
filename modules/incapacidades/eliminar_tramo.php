@@ -16,7 +16,7 @@ $st->execute([$tramo_id]);
 $t = $st->fetch();
 if (!$t) { redirect('modules/incapacidades/listar.php'); }
 
-if ($usuario_rol !== 'admin' && $t['sucursal_id'] != ($usuario_sucursal_id ?? null)) {
+if ($usuario_rol !== 'admin' && !in_array((int)$t['sucursal_id'], $usuario_sucursales, true)) {
     redirect('modules/incapacidades/listar.php');
 }
 $volver = 'modules/incapacidades/seguimiento.php?reporte_id=' . (int)$t['reporte_id'];

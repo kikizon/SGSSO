@@ -7,9 +7,11 @@ if ($usuario_rol !== 'admin') {
     exit;
 }
 
-$usuarios = $pdo->query("SELECT u.id, u.nombre_completo, u.email, u.rol, u.activo, u.debe_cambiar_password, s.nombre as sucursal
+$usuarios = $pdo->query("SELECT u.id, u.nombre_completo, u.email, u.rol, u.activo, u.debe_cambiar_password,
+                                (SELECT GROUP_CONCAT(s.nombre ORDER BY s.nombre SEPARATOR ', ')
+                                 FROM usuario_sucursales us JOIN sucursales s ON s.id = us.sucursal_id
+                                 WHERE us.usuario_id = u.id) AS sucursales
                          FROM usuarios u
-                         LEFT JOIN sucursales s ON u.sucursal_id = s.id
                          ORDER BY u.nombre_completo")->fetchAll();
 
 $pendientes = autz_contar_pendientes($pdo);
@@ -51,7 +53,7 @@ include '../../includes/header.php';
             <?php
             $si  = '<span class="text-success fw-bold">Sí</span>';
             $no  = '<span class="text-danger">No</span>';
-            $suc = '<span class="text-primary">Su sucursal</span>';
+            $suc = '<span class="text-primary">Sus sucursales</span>';
             $aut = '<span class="text-warning">Con autorización</span>';
             $rows = [
               ['Ver dashboards',                 $si,  $suc, $suc],
@@ -78,8 +80,8 @@ include '../../includes/header.php';
       </div>
       <p class="text-muted small mb-0">
         <strong>Con autorización</strong>: la acción genera una solicitud que un <strong>Administrador</strong> debe aprobar
-        antes de aplicarse (doble autorización). <strong>Su sucursal</strong>: el rol solo ve y actúa sobre registros de la
-        sucursal que tiene asignada.
+        antes de aplicarse (doble autorización). <strong>Sus sucursales</strong>: el rol solo ve y actúa sobre registros de las
+        sucursales que tiene asignadas.
       </p>
     </div>
   </div>
@@ -92,7 +94,7 @@ include '../../includes/header.php';
                 <th>Nombre</th>
                 <th>Email</th>
                 <th>Rol</th>
-                <th>Sucursal</th>
+                <th>Sucursales</th>
                 <th>Estado</th>
                 <th>Debe cambiar password</th>
                 <th>Acciones</th>
@@ -104,7 +106,11 @@ include '../../includes/header.php';
                 <td><?= htmlspecialchars($u['nombre_completo']) ?></td>
                 <td><?= htmlspecialchars($u['email']) ?></td>
                 <td><?= $u['rol'] === 'admin' ? '<span class="badge bg-danger">Admin</span>' : ($u['rol'] === 'supervisor' ? '<span class="badge bg-warning text-dark">Supervisor</span>' : '<span class="badge bg-secondary">Usuario</span>') ?></td>
-                <td><?= htmlspecialchars($u['sucursal'] ?? '—') ?></td>
+                <td>
+                    <?php if (!empty($u['sucursales'])): ?>
+                        <?php foreach (explode(', ', $u['sucursales']) as $sn): ?><span class="badge bg-light text-dark border me-1"><?= htmlspecialchars($sn) ?></span><?php endforeach; ?>
+                    <?php else: ?>—<?php endif; ?>
+                </td>
                 <td><?= $u['activo'] ? '<span class="badge bg-success">Activo</span>' : '<span class="badge bg-danger">Inactivo</span>' ?></td>
                 <td><?= $u['debe_cambiar_password'] ? '<span class="badge bg-warning text-dark">Sí</span>' : '<span class="badge bg-success">No</span>' ?></td>
                 <td>

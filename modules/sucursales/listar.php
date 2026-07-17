@@ -48,12 +48,14 @@ include '../../includes/header.php';
 <div class="table-responsive">
     <table class="table table-striped">
         <thead>
-            <tr><th>Nombre</th><th>Dirección</th><th>Estado</th><th>Acciones</th></tr>
+            <tr><th>Sucursal</th><th>Dirección</th><th>Estado</th><th>Acciones</th></tr>
         </thead>
         <tbody>
             <?php foreach ($sucursales as $s): ?>
             <tr>
-                <td><?= htmlspecialchars($s['nombre']) ?></td>
+                <td>
+                    <span class="badge" style="background-color: <?= htmlspecialchars($s['color'] ?: '#6c757d') ?>; color:#fff;"><i class="fas fa-store"></i> <?= htmlspecialchars($s['nombre']) ?></span>
+                </td>
                 <td><?= htmlspecialchars($s['direccion'] ?? '—') ?></td>
                 <td><?= $s['activo'] ? '<span class="badge bg-success">Activo</span>' : '<span class="badge bg-danger">Inactivo</span>' ?></td>
                 <td>

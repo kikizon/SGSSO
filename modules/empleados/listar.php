@@ -96,6 +96,7 @@ include '../../includes/header.php';
         <?php if ($usuario_rol === 'admin'): ?>
         <a href="plantilla.php" class="btn btn-outline-secondary no-spinner"><i class="fas fa-download"></i> Descargar Plantilla CSV</a>
         <a href="importar.php" class="btn btn-success"><i class="fas fa-upload"></i> Importar CSV</a>
+        <a href="fotos_masivas.php" class="btn btn-outline-primary"><i class="fas fa-images"></i> Fotos masivas</a>
         <?php endif; ?>
     </div>
     <div class="col-md-4 text-end">
@@ -205,7 +206,14 @@ include '../../includes/header.php';
                 <?php foreach ($empleados as $e): ?>
                 <tr>
                     <td><?= htmlspecialchars($e['numero_empleado']) ?></td>
-                    <td><?= htmlspecialchars($e['nombre']) ?></td>
+                    <td>
+                        <?php if (!empty($e['foto'])): ?>
+                            <img src="<?= UPLOAD_URL . htmlspecialchars($e['foto']) ?>" class="rounded-circle me-1" style="width:28px;height:28px;object-fit:cover;" alt="">
+                        <?php else: ?>
+                            <span class="rounded-circle bg-secondary text-white d-inline-flex align-items-center justify-content-center me-1" style="width:28px;height:28px;font-size:.7rem;"><i class="fas fa-user"></i></span>
+                        <?php endif; ?>
+                        <?= htmlspecialchars($e['nombre']) ?>
+                    </td>
                     <td><?= htmlspecialchars($e['departamento']) ?></td>
                     <td><?= htmlspecialchars($e['sucursal']) ?></td>
                     <td><?= $e['activo'] ? '<span class="badge bg-success">Activo</span>' : '<span class="badge bg-danger">Inactivo</span>' ?></td>

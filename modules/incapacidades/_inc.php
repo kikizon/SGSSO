@@ -18,7 +18,7 @@ function estado_incapacidad(array $reporte, int $n_tramos): string {
 }
 
 /** Carga un reporte de accidente y valida acceso. Redirige si no procede. */
-function cargar_reporte_incapacidad(PDO $pdo, int $reporte_id, string $usuario_rol, $usuario_sucursal_id): array {
+function cargar_reporte_incapacidad(PDO $pdo, int $reporte_id, string $usuario_rol, array $usuario_sucursales): array {
     $st = $pdo->prepare("SELECT r.*, e.numero_empleado, e.nombre AS empleado_nombre,
                                 d.nombre AS departamento, s.nombre AS sucursal
                          FROM reportes r
@@ -29,7 +29,7 @@ function cargar_reporte_incapacidad(PDO $pdo, int $reporte_id, string $usuario_r
     $st->execute([$reporte_id]);
     $rep = $st->fetch();
     if (!$rep) { redirect('modules/incapacidades/listar.php'); }
-    if ($usuario_rol !== 'admin' && $rep['sucursal_id'] != $usuario_sucursal_id) {
+    if ($usuario_rol !== 'admin' && !in_array((int)$rep['sucursal_id'], $usuario_sucursales, true)) {
         redirect('modules/incapacidades/listar.php');
     }
     return $rep;

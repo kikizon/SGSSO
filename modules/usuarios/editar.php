@@ -16,6 +16,16 @@ if (!$usuario) {
 }
 
 $sucursales = $pdo->query("SELECT id, nombre FROM sucursales WHERE activo = 1 ORDER BY nombre")->fetchAll();
+
+// Sucursales actualmente asignadas
+$asignadas = [];
+try {
+    $qa = $pdo->prepare("SELECT sucursal_id FROM usuario_sucursales WHERE usuario_id = ?");
+    $qa->execute([$id]);
+    $asignadas = array_map('intval', array_column($qa->fetchAll(), 'sucursal_id'));
+} catch (Throwable $e) { $asignadas = []; }
+if (empty($asignadas) && $usuario['sucursal_id']) { $asignadas = [(int)$usuario['sucursal_id']]; }
+
 $error = '';
 $success = '';
 
@@ -24,43 +34,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
     $rol = $_POST['rol'] ?? 'usuario';
-    $sucursal_id = $_POST['sucursal_id'] ?? null;
+    $sucursales_sel = array_values(array_unique(array_map('intval', (array)($_POST['sucursales'] ?? []))));
     $activo = isset($_POST['activo']) ? 1 : 0;
     $debe_cambiar = isset($_POST['debe_cambiar_password']) ? 1 : 0;
 
-    $sucursal_id = ($sucursal_id === '' || $sucursal_id === null) ? null : (int)$sucursal_id;
-    if ($rol === 'admin') { $sucursal_id = null; }
+    if ($rol === 'admin') { $sucursales_sel = []; }
+    $primaria = $sucursales_sel[0] ?? null;
 
     if (!$nombre || !$email) {
         $error = 'Nombre y email son obligatorios.';
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error = 'Email no válido.';
-    } elseif ($rol !== 'admin' && !$sucursal_id) {
-        $error = 'Debe asignar una sucursal a usuarios y supervisores.';
+    } elseif ($rol !== 'admin' && empty($sucursales_sel)) {
+        $error = 'Debe asignar al menos una sucursal a usuarios y supervisores.';
     } else {
-        
-        $sql = "UPDATE usuarios SET nombre_completo=?, email=?, rol=?, sucursal_id=?, activo=?, debe_cambiar_password=?";
-        $params = [$nombre, $email, $rol, $sucursal_id, $activo, $debe_cambiar];
-        if (!empty($password)) {
-            $sql .= ", password_hash=?, ultimo_cambio_password=NOW()";
-            $params[] = password_hash($password, PASSWORD_DEFAULT);
-        }
-        $sql .= " WHERE id=?";
-        $params[] = $id;
-
+        $pdo->beginTransaction();
         try {
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute($params);
-            // Auditoría
-            $detalles = json_encode(['nombre' => $nombre, 'rol' => $rol]);
-            registrar_auditoria($pdo, $usuario_id, 'UPDATE', 'usuarios', $id, $detalles);
-            
+            $sql = "UPDATE usuarios SET nombre_completo=?, email=?, rol=?, sucursal_id=?, activo=?, debe_cambiar_password=?";
+            $params = [$nombre, $email, $rol, $primaria, $activo, $debe_cambiar];
+            if (!empty($password)) {
+                $sql .= ", password_hash=?, ultimo_cambio_password=NOW()";
+                $params[] = password_hash($password, PASSWORD_DEFAULT);
+            }
+            $sql .= " WHERE id=?";
+            $params[] = $id;
+            $pdo->prepare($sql)->execute($params);
+
+            // Reemplazar sucursales asignadas
+            $pdo->prepare("DELETE FROM usuario_sucursales WHERE usuario_id = ?")->execute([$id]);
+            if ($rol !== 'admin' && !empty($sucursales_sel)) {
+                $ins = $pdo->prepare("INSERT IGNORE INTO usuario_sucursales (usuario_id, sucursal_id) VALUES (?, ?)");
+                foreach ($sucursales_sel as $sid) { $ins->execute([$id, $sid]); }
+            }
+
+            registrar_auditoria($pdo, $usuario_id, 'UPDATE', 'usuarios', $id, json_encode(['nombre' => $nombre, 'rol' => $rol, 'sucursales' => $sucursales_sel]));
+            $pdo->commit();
+
             $success = 'Usuario actualizado.';
             // Recargar
             $stmt = $pdo->prepare("SELECT * FROM usuarios WHERE id = ?");
             $stmt->execute([$id]);
             $usuario = $stmt->fetch();
+            $asignadas = $sucursales_sel;
         } catch (PDOException $e) {
+            $pdo->rollBack();
             if ($e->errorInfo[1] == 1062) {
                 $error = 'El email ya está en uso.';
             } else {
@@ -69,6 +86,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
+
+// Para repoblar checkboxes tras error de validación
+$marcadas = ($_SERVER['REQUEST_METHOD'] === 'POST' && $error) ? array_map('intval', (array)($_POST['sucursales'] ?? [])) : $asignadas;
 
 include '../../includes/header.php';
 ?>
@@ -101,13 +121,17 @@ include '../../includes/header.php';
         </select>
     </div>
     <div class="col-md-6" id="div_sucursal">
-        <label for="sucursal_id" class="form-label">Sucursal <span id="sucursal_required" class="text-danger">*</span></label>
-        <select name="sucursal_id" id="sucursal_id" class="form-select">
-            <option value="">Seleccione...</option>
+        <label class="form-label">Sucursales <span id="sucursal_required" class="text-danger">*</span></label>
+        <div style="max-height:180px; overflow-y:auto; border:1px solid #ddd; border-radius:.375rem; padding:10px;">
             <?php foreach ($sucursales as $s): ?>
-                <option value="<?= $s['id'] ?>" <?= $usuario['sucursal_id'] == $s['id'] ? 'selected' : '' ?>><?= htmlspecialchars($s['nombre']) ?></option>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="sucursales[]" value="<?= $s['id'] ?>" id="suc_<?= $s['id'] ?>"
+                        <?= in_array((int)$s['id'], $marcadas, true) ? 'checked' : '' ?>>
+                    <label class="form-check-label" for="suc_<?= $s['id'] ?>"><?= htmlspecialchars($s['nombre']) ?></label>
+                </div>
             <?php endforeach; ?>
-        </select>
+        </div>
+        <small class="text-muted">Marca una o varias sucursales que gestionará.</small>
     </div>
     <div class="col-12">
         <div class="form-check">
@@ -131,16 +155,12 @@ include '../../includes/header.php';
 function toggleSucursal() {
     const rol = document.getElementById('rol').value;
     const div = document.getElementById('div_sucursal');
-    const select = document.getElementById('sucursal_id');
     const req = document.getElementById('sucursal_required');
     if (rol === 'admin') {
         div.style.display = 'none';
-        select.required = false;
-        select.value = '';
         req.style.display = 'none';
     } else {
         div.style.display = 'block';
-        select.required = true;
         req.style.display = 'inline';
     }
 }

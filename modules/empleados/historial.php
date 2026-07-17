@@ -47,6 +47,7 @@ $sqlPendientes = "SELECT COUNT(DISTINCT c.id)
                   FROM cursos c
                   JOIN curso_asignaciones ca ON c.id = ca.curso_id
                   WHERE c.activo = 1
+                    AND (c.sucursal_id IS NULL OR c.sucursal_id = ?)
                     AND (
                         (ca.tipo_asignacion = 'todos')
                         OR (ca.tipo_asignacion = 'sucursal' AND ca.entidad_id = ?)
@@ -58,7 +59,7 @@ $sqlPendientes = "SELECT COUNT(DISTINCT c.id)
           )
                     AND c.id NOT IN (SELECT curso_id FROM empleado_curso WHERE empleado_id = ?)";
 $stmtPendientes = $pdo->prepare($sqlPendientes);
-$stmtPendientes->execute([$empleado['sucursal_id'], $empleado['departamento_id'], $empleado_id, $empleado_id, $empleado_id]);
+$stmtPendientes->execute([$empleado['sucursal_id'], $empleado['sucursal_id'], $empleado['departamento_id'], $empleado_id, $empleado_id, $empleado_id]);
 $totalPendientes = $stmtPendientes->fetchColumn();
 ?>
 
@@ -67,10 +68,21 @@ $totalPendientes = $stmtPendientes->fetchColumn();
     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
 </div>
 <div class="modal-body">
-    <div class="row mb-3">
-        <div class="col-md-4"><strong>Número:</strong> <?= htmlspecialchars($empleado['numero_empleado']) ?></div>
-        <div class="col-md-4"><strong>Departamento:</strong> <?= htmlspecialchars($empleado['departamento']) ?></div>
-        <div class="col-md-4"><strong>Sucursal:</strong> <?= htmlspecialchars($empleado['sucursal']) ?></div>
+    <div class="row mb-3 align-items-center">
+        <div class="col-auto">
+            <?php if (!empty($empleado['foto'])): ?>
+                <img src="<?= UPLOAD_URL . htmlspecialchars($empleado['foto']) ?>" class="rounded" style="width:72px;height:72px;object-fit:cover;" alt="">
+            <?php else: ?>
+                <span class="rounded bg-secondary text-white d-inline-flex align-items-center justify-content-center" style="width:72px;height:72px;"><i class="fas fa-user fa-2x"></i></span>
+            <?php endif; ?>
+        </div>
+        <div class="col">
+            <div class="row">
+                <div class="col-md-4"><strong>Número:</strong> <?= htmlspecialchars($empleado['numero_empleado']) ?></div>
+                <div class="col-md-4"><strong>Departamento:</strong> <?= htmlspecialchars($empleado['departamento']) ?></div>
+                <div class="col-md-4"><strong>Sucursal:</strong> <?= htmlspecialchars($empleado['sucursal']) ?></div>
+            </div>
+        </div>
     </div>
 
     <!-- Pestañas -->
@@ -100,6 +112,11 @@ $totalPendientes = $stmtPendientes->fetchColumn();
                 <i class="fas fa-exclamation-circle text-warning"></i> Pendientes (<?= $totalPendientes ?>)
             </button>
         </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="notas-tab" data-bs-toggle="tab" data-bs-target="#notas" type="button" role="tab" data-tipo="notas">
+                <i class="fas fa-note-sticky"></i> Notas
+            </button>
+        </li>
     </ul>
 
     <div class="tab-content mt-3" id="historialTabContent">
@@ -116,6 +133,9 @@ $totalPendientes = $stmtPendientes->fetchColumn();
             <div class="text-center p-3"><div class="spinner-border spinner-border-sm"></div> Cargando...</div>
         </div>
         <div class="tab-pane fade" id="pendientes" role="tabpanel">
+            <div class="text-center p-3"><div class="spinner-border spinner-border-sm"></div> Cargando...</div>
+        </div>
+        <div class="tab-pane fade" id="notas" role="tabpanel">
             <div class="text-center p-3"><div class="spinner-border spinner-border-sm"></div> Cargando...</div>
         </div>
     </div>
@@ -211,7 +231,8 @@ var loadedTabs = {
     enfermedades: false,
     alergias: false,
     cursos: false,
-    pendientes: false
+    pendientes: false,
+    notas: false
 };
 
 const empleadoIdActual = <?= $empleado_id ?>;
@@ -300,6 +321,7 @@ function cargarContenidoPestana(tipo) {
         case 'alergias': url = `historial_alergia.php?id=${empleadoIdActual}`; break;
         case 'cursos': url = `historial_curso.php?id=${empleadoIdActual}`; break;
         case 'pendientes': url = `historial_pendientes.php?id=${empleadoIdActual}`; break;
+        case 'notas': url = `historial_notas.php?id=${empleadoIdActual}`; break;
     }
     
     if (url) {
@@ -636,6 +658,41 @@ async function actualizarContadoresCursos(empleadoId) {
         console.error('Error al actualizar contadores', e);
     }
 }
+
+// ===== Notas del empleado =====
+document.addEventListener('click', async (e) => {
+    const addBtn = e.target.closest('.btn-guardar-nota');
+    if (addBtn) {
+        const ta = document.getElementById('notaTexto');
+        const texto = (ta?.value || '').trim();
+        if (!texto) { alert('Escribe una nota.'); return; }
+        addBtn.disabled = true;
+        const fd = new FormData();
+        fd.append('empleado_id', addBtn.dataset.empleadoId);
+        fd.append('nota', texto);
+        try {
+            const r = await fetch('<?= BASE_URL ?>modules/empleados/nota_agregar.php', { method: 'POST', body: fd });
+            const d = await r.json();
+            if (d.success) { loadedTabs.notas = false; cargarContenidoPestana('notas'); }
+            else alert('Error: ' + (d.error || 'No se pudo guardar'));
+        } catch (_) { alert('Error de conexión'); }
+        finally { addBtn.disabled = false; }
+        return;
+    }
+    const delBtn = e.target.closest('.btn-eliminar-nota');
+    if (delBtn) {
+        if (!confirm('¿Eliminar esta nota?')) return;
+        const fd = new FormData();
+        fd.append('nota_id', delBtn.dataset.notaId);
+        try {
+            const r = await fetch('<?= BASE_URL ?>modules/empleados/nota_eliminar.php', { method: 'POST', body: fd });
+            const d = await r.json();
+            if (d.success) { loadedTabs.notas = false; cargarContenidoPestana('notas'); }
+            else alert('Error: ' + (d.error || 'No se pudo eliminar'));
+        } catch (_) { alert('Error de conexión'); }
+        return;
+    }
+});
 
 // Limpiar backdrops al cerrar modales
 ['modalAsignarAlergia', 'modalAsignarEnfermedad', 'modalFechaCurso'].forEach(id => {

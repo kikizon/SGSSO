@@ -10,7 +10,7 @@ if ($usuario_rol !== 'admin' && $usuario_rol !== 'supervisor') {
 $reporte_id = isset($_GET['reporte_id']) ? (int) $_GET['reporte_id'] : 0;
 if (!$reporte_id) { redirect('modules/incapacidades/listar.php'); }
 
-$rep = cargar_reporte_incapacidad($pdo, $reporte_id, $usuario_rol, $usuario_sucursal_id ?? null);
+$rep = cargar_reporte_incapacidad($pdo, $reporte_id, $usuario_rol, $usuario_sucursales);
 
 // Tramos
 $st = $pdo->prepare("SELECT * FROM incapacidad_tramos WHERE reporte_id = ? ORDER BY fecha_inicio, id");

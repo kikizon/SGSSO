@@ -8,7 +8,7 @@ if (!verify_csrf_token($_POST['csrf_token'] ?? '')) { http_response_code(403); e
 if ($usuario_rol !== 'admin' && $usuario_rol !== 'supervisor') { redirect('modules/dashboard/'); }
 
 $reporte_id = (int) ($_POST['reporte_id'] ?? 0);
-$rep = cargar_reporte_incapacidad($pdo, $reporte_id, $usuario_rol, $usuario_sucursal_id ?? null);
+$rep = cargar_reporte_incapacidad($pdo, $reporte_id, $usuario_rol, $usuario_sucursales);
 $volver = 'modules/incapacidades/seguimiento.php?reporte_id=' . $reporte_id;
 
 if (!empty($rep['fecha_regreso'])) {

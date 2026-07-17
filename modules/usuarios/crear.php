@@ -15,34 +15,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
     $rol = $_POST['rol'] ?? 'usuario';
-    $sucursal_id = $_POST['sucursal_id'] ?? null;
+    $sucursales_sel = array_values(array_unique(array_map('intval', (array)($_POST['sucursales'] ?? []))));
     $activo = isset($_POST['activo']) ? 1 : 0;
     $debe_cambiar = isset($_POST['debe_cambiar_password']) ? 1 : 0;
 
-    // Normalizar sucursal: '' -> null; admin nunca lleva sucursal
-    $sucursal_id = ($sucursal_id === '' || $sucursal_id === null) ? null : (int)$sucursal_id;
-    if ($rol === 'admin') { $sucursal_id = null; }
+    if ($rol === 'admin') { $sucursales_sel = []; }
+    $primaria = $sucursales_sel[0] ?? null; // compat con usuarios.sucursal_id
 
     if (!$nombre || !$email || !$password) {
         $error = 'Todos los campos obligatorios deben completarse.';
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error = 'Email no válido.';
-    } elseif ($rol !== 'admin' && !$sucursal_id) {
-        $error = 'Debe asignar una sucursal a usuarios y supervisores.';
+    } elseif ($rol !== 'admin' && empty($sucursales_sel)) {
+        $error = 'Debe asignar al menos una sucursal a usuarios y supervisores.';
     } else {
         $hash = password_hash($password, PASSWORD_DEFAULT);
-        $stmt = $pdo->prepare("INSERT INTO usuarios (nombre_completo, email, password_hash, rol, sucursal_id, activo, debe_cambiar_password, ultimo_cambio_password) 
-                               VALUES (?, ?, ?, ?, ?, ?, ?, NOW())");
+        $pdo->beginTransaction();
         try {
-            $stmt->execute([$nombre, $email, $hash, $rol, $sucursal_id, $activo, $debe_cambiar]);
+            $stmt = $pdo->prepare("INSERT INTO usuarios (nombre_completo, email, password_hash, rol, sucursal_id, activo, debe_cambiar_password, ultimo_cambio_password) 
+                                   VALUES (?, ?, ?, ?, ?, ?, ?, NOW())");
+            $stmt->execute([$nombre, $email, $hash, $rol, $primaria, $activo, $debe_cambiar]);
             $nuevo_usuario_id = $pdo->lastInsertId();
 
-            // Auditoría (usuario_id es el admin que está creando)
-            $detalles = json_encode(['nombre' => $nombre, 'email' => $email, 'rol' => $rol]);
+            if ($rol !== 'admin' && !empty($sucursales_sel)) {
+                $ins = $pdo->prepare("INSERT IGNORE INTO usuario_sucursales (usuario_id, sucursal_id) VALUES (?, ?)");
+                foreach ($sucursales_sel as $sid) { $ins->execute([$nuevo_usuario_id, $sid]); }
+            }
+
+            $detalles = json_encode(['nombre' => $nombre, 'email' => $email, 'rol' => $rol, 'sucursales' => $sucursales_sel]);
             registrar_auditoria($pdo, $usuario_id, 'INSERT', 'usuarios', $nuevo_usuario_id, $detalles);
+
+            $pdo->commit();
             $success = 'Usuario creado exitosamente.';
             $_POST = [];
         } catch (PDOException $e) {
+            $pdo->rollBack();
             if ($e->errorInfo[1] == 1062) {
                 $error = 'El email ya está registrado.';
             } else {
@@ -76,19 +83,23 @@ include '../../includes/header.php';
     <div class="col-md-6">
         <label for="rol" class="form-label">Rol</label>
         <select name="rol" id="rol" class="form-select" onchange="toggleSucursal()">
-            <option value="usuario" <?= (isset($_POST['rol']) && $_POST['rol'] == 'usuario') ? 'selected' : '' ?>>Usuario</option>
-            <option value="supervisor" <?= (isset($_POST['rol']) && $_POST['rol'] == 'supervisor') ? 'selected' : '' ?>>Supervisor</option>
-            <option value="admin" <?= (isset($_POST['rol']) && $_POST['rol'] == 'admin') ? 'selected' : '' ?>>Administrador</option>
+            <option value="usuario" <?= (($_POST['rol'] ?? '') == 'usuario') ? 'selected' : '' ?>>Usuario</option>
+            <option value="supervisor" <?= (($_POST['rol'] ?? '') == 'supervisor') ? 'selected' : '' ?>>Supervisor</option>
+            <option value="admin" <?= (($_POST['rol'] ?? '') == 'admin') ? 'selected' : '' ?>>Administrador</option>
         </select>
     </div>
     <div class="col-md-6" id="div_sucursal">
-        <label for="sucursal_id" class="form-label">Sucursal <span id="sucursal_required" class="text-danger">*</span></label>
-        <select name="sucursal_id" id="sucursal_id" class="form-select">
-            <option value="">Seleccione...</option>
+        <label class="form-label">Sucursales <span id="sucursal_required" class="text-danger">*</span></label>
+        <div style="max-height:180px; overflow-y:auto; border:1px solid #ddd; border-radius:.375rem; padding:10px;">
             <?php foreach ($sucursales as $s): ?>
-                <option value="<?= $s['id'] ?>" <?= (isset($_POST['sucursal_id']) && $_POST['sucursal_id'] == $s['id']) ? 'selected' : '' ?>><?= htmlspecialchars($s['nombre']) ?></option>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="sucursales[]" value="<?= $s['id'] ?>" id="suc_<?= $s['id'] ?>"
+                        <?= in_array($s['id'], $_POST['sucursales'] ?? []) ? 'checked' : '' ?>>
+                    <label class="form-check-label" for="suc_<?= $s['id'] ?>"><?= htmlspecialchars($s['nombre']) ?></label>
+                </div>
             <?php endforeach; ?>
-        </select>
+        </div>
+        <small class="text-muted">Marca una o varias sucursales que gestionará.</small>
     </div>
     <div class="col-12">
         <div class="form-check">
@@ -112,16 +123,12 @@ include '../../includes/header.php';
 function toggleSucursal() {
     const rol = document.getElementById('rol').value;
     const div = document.getElementById('div_sucursal');
-    const select = document.getElementById('sucursal_id');
     const req = document.getElementById('sucursal_required');
     if (rol === 'admin') {
         div.style.display = 'none';
-        select.required = false;
-        select.value = '';
         req.style.display = 'none';
     } else {
         div.style.display = 'block';
-        select.required = true;
         req.style.display = 'inline';
     }
 }

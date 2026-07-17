@@ -1,9 +1,26 @@
 <?php
 require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
+@include_once '../../includes/image_optim.php';
 if ($usuario_rol === 'usuario') {
     header('Location: ' . BASE_URL . 'modules/dashboard/');
     exit;
+}
+
+/** Procesa la foto subida y devuelve el nombre de archivo, o null. */
+function procesar_foto_empleado($file) {
+    if (empty($file) || empty($file['name']) || ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) return null;
+    if ($file['error'] !== UPLOAD_ERR_OK) return null;
+    if ($file['size'] <= 0 || $file['size'] > 8 * 1024 * 1024) return null;
+    if (!is_uploaded_file($file['tmp_name'])) return null;
+    $mime = (new finfo(FILEINFO_MIME_TYPE))->file($file['tmp_name']);
+    $ext = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'][$mime] ?? null;
+    if (!$ext) return null;
+    $nombre = 'emp_' . uniqid('', true) . '.' . $ext;
+    if (!is_dir(UPLOAD_DIR)) @mkdir(UPLOAD_DIR, 0755, true);
+    if (!move_uploaded_file($file['tmp_name'], UPLOAD_DIR . $nombre)) return null;
+    if (function_exists('optimizar_imagen')) { optimizar_imagen(UPLOAD_DIR . $nombre, 600, 80); }
+    return $nombre;
 }
 
 $id = $_GET['id'] ?? 0;
@@ -36,6 +53,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $pdo->prepare("UPDATE empleados SET numero_empleado=?, nombre=?, departamento_id=?, sucursal_id=?, fecha_nacimiento=?, activo=? WHERE id=?");
         try {
             $stmt->execute([$numero, $nombre, $departamento_id, $sucursal_id, $fecha_nacimiento ?: null, $activo, $id]);
+
+            // Foto: reemplazar o quitar
+            $foto = procesar_foto_empleado($_FILES['foto'] ?? null);
+            if ($foto) {
+                if (!empty($empleado['foto']) && is_file(UPLOAD_DIR . $empleado['foto'])) @unlink(UPLOAD_DIR . $empleado['foto']);
+                $pdo->prepare("UPDATE empleados SET foto = ? WHERE id = ?")->execute([$foto, $id]);
+            } elseif (isset($_POST['quitar_foto']) && !empty($empleado['foto'])) {
+                if (is_file(UPLOAD_DIR . $empleado['foto'])) @unlink(UPLOAD_DIR . $empleado['foto']);
+                $pdo->prepare("UPDATE empleados SET foto = NULL WHERE id = ?")->execute([$id]);
+            }
+
             $success = 'Empleado actualizado exitosamente.';
             registrar_auditoria($pdo, $usuario_id, 'UPDATE', 'empleados', $id, 'Datos actualizados');
             // Recargar datos
@@ -60,7 +88,7 @@ include '../../includes/header.php';
 <?php if ($error): ?><div class="alert alert-danger"><?= htmlspecialchars($error) ?></div><?php endif; ?>
 <?php if ($success): ?><div class="alert alert-success"><?= htmlspecialchars($success) ?> <a href="listar.php">Ver listado</a></div><?php endif; ?>
 
-<form method="post" class="row g-3 needs-validation" novalidate>
+<form method="post" enctype="multipart/form-data" class="row g-3 needs-validation" novalidate>
     <div class="col-md-6">
         <label for="numero_empleado" class="form-label">Número de Empleado <span class="text-danger">*</span></label>
         <input type="text" name="numero_empleado" id="numero_empleado" class="form-control" value="<?= htmlspecialchars($empleado['numero_empleado']) ?>" required>
@@ -90,6 +118,25 @@ include '../../includes/header.php';
     <div class="col-md-6">
         <label for="fecha_nacimiento" class="form-label">Fecha de Nacimiento</label>
         <input type="date" name="fecha_nacimiento" id="fecha_nacimiento" class="form-control" value="<?= htmlspecialchars($empleado['fecha_nacimiento'] ?? '') ?>">
+    </div>
+    <div class="col-md-6">
+        <label for="foto" class="form-label">Foto de perfil</label>
+        <div class="d-flex align-items-center gap-3">
+            <?php if (!empty($empleado['foto'])): ?>
+                <img src="<?= UPLOAD_URL . htmlspecialchars($empleado['foto']) ?>" class="rounded" style="width:64px;height:64px;object-fit:cover;">
+            <?php else: ?>
+                <span class="rounded bg-secondary text-white d-inline-flex align-items-center justify-content-center" style="width:64px;height:64px;"><i class="fas fa-user fa-lg"></i></span>
+            <?php endif; ?>
+            <div class="flex-grow-1">
+                <input type="file" name="foto" id="foto" class="form-control" accept="image/jpeg,image/png,image/webp" capture="environment">
+                <?php if (!empty($empleado['foto'])): ?>
+                <div class="form-check mt-1">
+                    <input type="checkbox" name="quitar_foto" id="quitar_foto" class="form-check-input" value="1">
+                    <label for="quitar_foto" class="form-check-label small">Quitar foto actual</label>
+                </div>
+                <?php endif; ?>
+            </div>
+        </div>
     </div>
     <div class="col-md-6 d-flex align-items-center">
         <div class="form-check">

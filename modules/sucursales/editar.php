@@ -21,13 +21,14 @@ $success = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $nombre = trim($_POST['nombre'] ?? '');
     $direccion = trim($_POST['direccion'] ?? '');
+    $color = preg_match('/^#[0-9a-fA-F]{6}$/', $_POST['color'] ?? '') ? $_POST['color'] : '#6c757d';
 
     if ($nombre === '') {
         $error = 'El nombre de la sucursal es obligatorio.';
     } else {
-        $stmt = $pdo->prepare("UPDATE sucursales SET nombre = ?, direccion = ? WHERE id = ?");
+        $stmt = $pdo->prepare("UPDATE sucursales SET nombre = ?, direccion = ?, color = ? WHERE id = ?");
         try {
-            $stmt->execute([$nombre, $direccion, $id]);
+            $stmt->execute([$nombre, $direccion, $color, $id]);
             $success = 'Sucursal actualizada exitosamente.';
             // Recargar datos
             $stmt = $pdo->prepare("SELECT * FROM sucursales WHERE id = ?");
@@ -64,10 +65,24 @@ include '../../includes/header.php';
         <label for="direccion" class="form-label">Dirección (opcional)</label>
         <input type="text" name="direccion" id="direccion" class="form-control" value="<?= htmlspecialchars($sucursal['direccion'] ?? '') ?>">
     </div>
+    <div class="col-md-6">
+        <label for="color" class="form-label">Color del badge</label>
+        <div class="d-flex align-items-center gap-2">
+            <input type="color" name="color" id="color" class="form-control form-control-color" value="<?= htmlspecialchars($sucursal['color'] ?: '#6c757d') ?>" title="Elige un color">
+            <span class="badge" id="previewBadge" style="background-color: <?= htmlspecialchars($sucursal['color'] ?: '#6c757d') ?>; color:#fff;"><?= htmlspecialchars($sucursal['nombre']) ?></span>
+        </div>
+        <small class="text-muted">Se usa para identificar la sucursal en listados y tableros.</small>
+    </div>
     <div class="col-12">
         <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Actualizar</button>
         <a href="listar.php" class="btn btn-secondary">Cancelar</a>
     </div>
 </form>
+
+<script>
+document.getElementById('color').addEventListener('input', function () {
+    document.getElementById('previewBadge').style.backgroundColor = this.value;
+});
+</script>
 
 <?php include '../../includes/footer.php'; ?>

@@ -12,6 +12,7 @@ $sql = "SELECT c.id, c.nombre, MAX(ca.obligatorio) as obligatorio
         FROM cursos c
         JOIN curso_asignaciones ca ON c.id = ca.curso_id
         WHERE c.activo = 1
+          AND (c.sucursal_id IS NULL OR c.sucursal_id = ?)
           AND (
               (ca.tipo_asignacion = 'todos')
               OR (ca.tipo_asignacion = 'sucursal' AND ca.entidad_id = ?)
@@ -25,7 +26,7 @@ $sql = "SELECT c.id, c.nombre, MAX(ca.obligatorio) as obligatorio
         GROUP BY c.id, c.nombre
         ORDER BY obligatorio DESC, c.nombre";
 $stmt = $pdo->prepare($sql);
-$stmt->execute([$empleado['sucursal_id'], $empleado['departamento_id'], $empleado_id, $empleado_id, $empleado_id]);
+$stmt->execute([$empleado['sucursal_id'], $empleado['sucursal_id'], $empleado['departamento_id'], $empleado_id, $empleado_id, $empleado_id]);
 $pendientes = $stmt->fetchAll();
 ?>
 <div class="card mb-3">

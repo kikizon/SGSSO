@@ -18,7 +18,7 @@ if (!in_array($f_estado, ['abierto', 'cerrado', 'todos'], true)) $f_estado = 'ab
 
 $where = ["r.tipo = 'accidente'"];
 $params = [];
-if (!$es_admin) { $where[] = 'r.sucursal_id = ?'; $params[] = $usuario_sucursal_id; }
+if (!$es_admin) { $where[] = "r.sucursal_id IN ($usuario_sucursales_sql)"; }
 elseif (($_GET['sucursal_id'] ?? '') !== '') { $where[] = 'r.sucursal_id = ?'; $params[] = (int)$_GET['sucursal_id']; }
 
 // Solo accidentes con incapacidad (tramos o días registrados)
