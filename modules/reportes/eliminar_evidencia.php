@@ -40,7 +40,7 @@ if (!$ev) {
 }
 
 $es_admin = ($usuario_rol === 'admin');
-if (!$es_admin && (int)$ev['sucursal_id'] !== (int)$usuario_sucursal_id) {
+if (!$es_admin && !in_array((int)$ev['sucursal_id'], $usuario_sucursales, true)) {
     http_response_code(403);
     echo json_encode(['ok' => false, 'error' => 'Sin permisos para esta evidencia']);
     exit;

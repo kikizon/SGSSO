@@ -36,7 +36,7 @@ $r = $st->fetch();
 if (!$r) { redirect('modules/reportes/listar.php'); }
 
 // Alcance por sucursal (supervisor)
-if ($usuario_rol !== 'admin' && isset($usuario_sucursal_id) && $r['sucursal_id'] != $usuario_sucursal_id) {
+if ($usuario_rol !== 'admin' && !in_array((int)$r['sucursal_id'], $usuario_sucursales, true)) {
     redirect('modules/reportes/listar.php');
 }
 

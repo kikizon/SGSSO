@@ -50,6 +50,7 @@ if ($tiene_reportes !== '') {
     }
 }
 
+if ($usuario_rol !== 'admin') { $where[] = "e.sucursal_id IN ($usuario_sucursales_sql)"; }
 $where_sql = empty($where) ? '' : 'WHERE ' . implode(' AND ', $where);
 
 // Total registros
@@ -80,7 +81,7 @@ $empleados = $stmt->fetchAll();
 if ($usuario_rol === 'admin') {
     $sucursales = $pdo->query("SELECT id, nombre FROM sucursales WHERE activo = 1 ORDER BY nombre")->fetchAll();
 } else {
-    $sucursales = $pdo->query("SELECT id, nombre FROM sucursales WHERE id = $usuario_sucursal_id")->fetchAll();
+    $sucursales = $pdo->query("SELECT id, nombre FROM sucursales WHERE id IN ($usuario_sucursales_sql) ORDER BY nombre")->fetchAll();
 }
 $departamentos = $pdo->query("SELECT id, nombre FROM departamentos WHERE activo = 1 ORDER BY nombre")->fetchAll();
 $enfermedades = $pdo->query("SELECT id, nombre FROM enfermedades_cronicas WHERE activo = 1 ORDER BY nombre")->fetchAll();

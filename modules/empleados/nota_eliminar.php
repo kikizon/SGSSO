@@ -16,7 +16,7 @@ $q = $pdo->prepare("SELECT n.id, n.empleado_id, e.sucursal_id
 $q->execute([$nota_id]);
 $row = $q->fetch();
 if (!$row) { echo json_encode(['success' => false, 'error' => 'La nota no existe']); exit; }
-if ($usuario_rol !== 'admin' && (int)$row['sucursal_id'] !== (int)$usuario_sucursal_id) {
+if ($usuario_rol !== 'admin' && !in_array((int)$row['sucursal_id'], $usuario_sucursales, true)) {
     http_response_code(403); echo json_encode(['success' => false, 'error' => 'Fuera de su sucursal']); exit;
 }
 

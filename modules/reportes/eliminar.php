@@ -18,7 +18,7 @@ $reporte = $stmt->fetch();
 if (!$reporte) { redirect('modules/reportes/listar.php'); }
 
 // Alcance por sucursal (no-admin solo su sucursal)
-if ($usuario_rol !== 'admin' && isset($usuario_sucursal_id) && $reporte['sucursal_id'] != $usuario_sucursal_id) {
+if ($usuario_rol !== 'admin' && !in_array((int)$reporte['sucursal_id'], $usuario_sucursales, true)) {
     redirect('modules/reportes/listar.php');
 }
 

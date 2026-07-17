@@ -24,6 +24,9 @@ if ($catalogo_id) {
     $params[] = $catalogo_id;
 }
 
+// Multi-sucursal: no-admin acotado a sus sucursales
+if ($usuario_rol !== 'admin') { $where[] = "r.sucursal_id IN ($usuario_sucursales_sql)"; }
+
 $joinCatalogo = ($tipo_filtro == 'acto_inseguro') 
     ? "JOIN actos_inseguros a ON r.acto_inseguro_id = a.id"
     : "JOIN tipos_accidente a ON r.accidente_id = a.id";
@@ -47,7 +50,7 @@ $reportes = $stmt->fetchAll();
 if ($usuario_rol === 'admin') {
     $sucursales = $pdo->query("SELECT id, nombre FROM sucursales WHERE activo=1 ORDER BY nombre")->fetchAll();
 } else {
-    $sucursales = $pdo->query("SELECT id, nombre FROM sucursales WHERE id = $usuario_sucursal_id")->fetchAll();
+    $sucursales = $pdo->query("SELECT id, nombre FROM sucursales WHERE id IN ($usuario_sucursales_sql) ORDER BY nombre")->fetchAll();
 }
 $departamentos = $pdo->query("SELECT id, nombre FROM departamentos WHERE activo=1 ORDER BY nombre")->fetchAll();
 if ($tipo_filtro == 'acto_inseguro') {

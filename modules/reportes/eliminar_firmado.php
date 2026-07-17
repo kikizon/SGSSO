@@ -22,7 +22,7 @@ $st->execute([$firmado_id]);
 $f = $st->fetch();
 if (!$f) { redirect('modules/reportes/listar.php'); }
 
-if ($usuario_rol !== 'admin' && isset($usuario_sucursal_id) && $f['sucursal_id'] != $usuario_sucursal_id) {
+if ($usuario_rol !== 'admin' && !in_array((int)$f['sucursal_id'], $usuario_sucursales, true)) {
     redirect('modules/reportes/listar.php');
 }
 

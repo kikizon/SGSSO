@@ -16,7 +16,7 @@ $q = $pdo->prepare("SELECT sucursal_id FROM empleados WHERE id = ?");
 $q->execute([$empleado_id]);
 $suc = $q->fetchColumn();
 if ($suc === false) { echo json_encode(['success' => false, 'error' => 'Empleado no existe']); exit; }
-if ($usuario_rol !== 'admin' && (int)$suc !== (int)$usuario_sucursal_id) {
+if ($usuario_rol !== 'admin' && !in_array((int)$suc, $usuario_sucursales, true)) {
     http_response_code(403); echo json_encode(['success' => false, 'error' => 'Fuera de su sucursal']); exit;
 }
 

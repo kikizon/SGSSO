@@ -22,7 +22,7 @@ $st = $pdo->prepare("SELECT id, sucursal_id FROM reportes WHERE id = ?");
 $st->execute([$reporte_id]);
 $rep = $st->fetch();
 if (!$rep) { redirect('modules/reportes/listar.php'); }
-if ($usuario_rol !== 'admin' && isset($usuario_sucursal_id) && $rep['sucursal_id'] != $usuario_sucursal_id) {
+if ($usuario_rol !== 'admin' && !in_array((int)$rep['sucursal_id'], $usuario_sucursales, true)) {
     redirect('modules/reportes/listar.php');
 }
 
