@@ -19,7 +19,7 @@
         <div class="col-auto">
             <label class="form-label mb-0 small">Sucursal</label>
             <select name="sucursal_id" class="form-select form-select-sm" onchange="this.form.submit()">
-                <?php if ($usuario_rol === 'admin'): ?><option value="">Todas</option><?php endif; ?>
+                <option value=""><?= $usuario_rol === 'admin' ? 'Todas' : 'Todas mis sucursales' ?></option>
                 <?php foreach ($sucursales as $s): ?>
                     <option value="<?= $s['id'] ?>" <?= $sucursal_id == $s['id'] ? 'selected' : '' ?>><?= htmlspecialchars($s['nombre']) ?></option>
                 <?php endforeach; ?>

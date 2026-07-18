@@ -11,7 +11,7 @@ $f_depto_6s = ($_GET['departamento_id'] ?? '') !== '' ? (int) $_GET['departament
 $meta_6s    = 85;
 
 $where = ["a.estado = 'finalizada'"]; $params = [];
-if ($sucursal_id) { $where[] = 'a.sucursal_id = ?'; $params[] = $sucursal_id; }
+if ($scopeSucursalSql !== '') { $where[] = "a.sucursal_id IN ($scopeSucursalSql)"; }
 $where_sql = 'WHERE ' . implode(' AND ', $where);
 
 $dep = $f_depto_6s ? (int)$f_depto_6s : 0;
@@ -78,7 +78,7 @@ if (empty($lblDep6s)) { $lblDep6s = ['Sin datos']; $datDep6s = [0]; }
 
 // Por sucursal (admin sin filtro)
 $suc6s = [];
-if ($es_admin && !$sucursal_id) {
+if (!$sucursal_id && ($es_admin || count($usuario_sucursales) > 1)) {
     $st = $pdo->prepare("SELECT s.nombre, ROUND(AVG(a.evaluacion_total),1) AS prom, COUNT(*) AS n
                          FROM auditorias_6s a JOIN sucursales s ON s.id = a.sucursal_id
                          $where_sql GROUP BY s.id ORDER BY prom DESC");

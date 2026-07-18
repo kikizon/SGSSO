@@ -60,7 +60,7 @@ if (empty($sucPrevValores)) { $sucPrevLabels = ['Sin datos']; $sucPrevValores = 
 // ============================================================
 $enfDeptoData = $pdo->query("SELECT d.nombre, COUNT(DISTINCT ee.empleado_id) as total
     FROM departamentos d
-    LEFT JOIN empleados e ON e.departamento_id = d.id AND e.activo = 1 " . ($sucursal_id ? "AND e.sucursal_id = $sucursal_id" : "") . "
+    LEFT JOIN empleados e ON e.departamento_id = d.id AND e.activo = 1 " . ($scopeSucursalSql !== '' ? "AND e.sucursal_id IN ($scopeSucursalSql)" : "") . "
     LEFT JOIN empleado_enfermedad ee ON ee.empleado_id = e.id $filtroMesEnf
     WHERE d.activo = 1 GROUP BY d.id HAVING total > 0 ORDER BY total DESC")->fetchAll();
 $enfDeptoLabels = array_column($enfDeptoData, 'nombre');

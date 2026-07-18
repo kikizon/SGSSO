@@ -21,7 +21,7 @@ if ($usuario_rol !== 'admin') {
     $sucursales = $pdo->query("SELECT id, nombre FROM sucursales WHERE activo = 1 AND id IN ($usuario_sucursales_sql) ORDER BY nombre")->fetchAll();
     $permitidas = array_map(fn($s) => (int)$s['id'], $sucursales);
     $sel = ($_GET['sucursal_id'] ?? '') !== '' ? (int) $_GET['sucursal_id'] : 0;
-    $sucursal_id = in_array($sel, $permitidas, true) ? $sel : ($permitidas[0] ?? 0);
+    $sucursal_id = ($sel !== 0 && in_array($sel, $permitidas, true)) ? $sel : ''; // '' = todas mis sucursales
 } else {
     $sucursal_id = ($_GET['sucursal_id'] ?? '') !== '' ? (int) $_GET['sucursal_id'] : '';
     $sucursales = $pdo->query("SELECT id, nombre FROM sucursales WHERE activo = 1 ORDER BY nombre")->fetchAll();
@@ -29,7 +29,14 @@ if ($usuario_rol !== 'admin') {
 
 $nombreSucursalSeleccionada = $sucursal_id
     ? ($pdo->query("SELECT nombre FROM sucursales WHERE id = " . (int)$sucursal_id)->fetchColumn() ?: 'Todas')
-    : 'Todas';
+    : ($usuario_rol === 'admin' ? 'Todas' : 'Todas mis sucursales');
+
+// Ámbito de sucursales para las consultas del dashboard (multi-sucursal)
+if ($usuario_rol === 'admin') {
+    $scopeSucursalSql = $sucursal_id !== '' ? (string)(int)$sucursal_id : '';           // '' = todas
+} else {
+    $scopeSucursalSql = $sucursal_id !== '' ? (string)(int)$sucursal_id : $usuario_sucursales_sql; // '' = todas las mías
+}
 
 $meses_es = ['', 'Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
@@ -50,8 +57,8 @@ if ($tablero === 'seguridad') {
     $mes_anio = $mes ? (int) substr($mes, 0, 4) : null;
     $mes_num  = $mes ? (int) substr($mes, 5, 2) : null;
 
-    $filtroSucursalReportes  = $sucursal_id ? "AND r.sucursal_id = $sucursal_id" : "";
-    $filtroSucursalEmpleados = $sucursal_id ? "AND e.sucursal_id = $sucursal_id" : "";
+    $filtroSucursalReportes  = $scopeSucursalSql !== '' ? "AND r.sucursal_id IN ($scopeSucursalSql)" : "";
+    $filtroSucursalEmpleados = $scopeSucursalSql !== '' ? "AND e.sucursal_id IN ($scopeSucursalSql)" : "";
     $filtroTipo = ($tipo_filtro !== 'enfermedad_cronica') ? "AND r.tipo = '$tipo_filtro'" : "";
     $filtroMesReportes = $mes ? "AND YEAR(r.fecha) = $mes_anio AND MONTH(r.fecha) = $mes_num" : "";
     $filtroMesEnf      = $mes ? "AND YEAR(ee.fecha_registro) = $mes_anio AND MONTH(ee.fecha_registro) = $mes_num" : "";

@@ -17,8 +17,8 @@ try {
 $hoy = new DateTime('today');
 
 // Filtro de sucursal sobre el alcance de empleados (parametrizado)
-$sucSqlEmp = $sucursal_id ? " AND e.sucursal_id = ?" : "";
-$sucParam  = $sucursal_id ? [$sucursal_id] : [];
+$sucSqlEmp = $scopeSucursalSql !== '' ? " AND e.sucursal_id IN ($scopeSucursalSql)" : "";
+$sucParam  = [];
 
 /** Construye la condición de alcance (quiénes DEBEN tomar el curso). */
 function condicionAlcance(array $asigs): string {
