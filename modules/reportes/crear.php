@@ -38,7 +38,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $st7 = isset($_POST['st7']) ? 1 : 0;
     $costo_atencion = !empty($_POST['costo_atencion']) ? (float)$_POST['costo_atencion'] : null;
 
-    if (!$empleado_id || !$departamento_id || !$sucursal_id || !$fecha || !$hora || !$catalogo_id) {
+    if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = 'Token de seguridad inválido. Recarga la página e intenta de nuevo.';
+    } elseif (!$empleado_id || !$departamento_id || !$sucursal_id || !$fecha || !$hora || !$catalogo_id) {
         $error = 'Todos los campos obligatorios deben completarse.';
     } else {
         $pdo->beginTransaction();
@@ -120,7 +122,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_POST = [];
         } catch (Exception $e) {
             $pdo->rollBack();
-            $error = 'Error al guardar el reporte: ' . $e->getMessage();
+            error_log('reportes/crear: ' . $e->getMessage());
+            $error = 'Error al guardar el reporte. Intenta de nuevo.';
         }
     }
 }
@@ -144,6 +147,7 @@ include '../../includes/header.php';
 <?php endif; ?>
 
 <form method="post" enctype="multipart/form-data" class="row g-3 needs-validation" novalidate id="reporteForm">
+    <input type="hidden" name="csrf_token" value="<?= generate_csrf_token() ?>">
     <div class="col-md-6">
         <label for="tipo" class="form-label">Tipo de Reporte <span class="text-danger">*</span></label>
         <select name="tipo" id="tipo" class="form-select" required onchange="cambiarTipo()">

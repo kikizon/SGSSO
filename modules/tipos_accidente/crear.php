@@ -1,5 +1,6 @@
 <?php
 require_once '../../includes/auth.php';
+require_once '../../includes/functions.php';
 if ($usuario_rol !== 'admin') {
     header('Location: ' . BASE_URL . 'modules/dashboard/');
     exit;
@@ -8,6 +9,8 @@ if ($usuario_rol !== 'admin') {
 $error = $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if (!verify_csrf_token($_POST['csrf_token'] ?? '')) { $error = 'Token de seguridad inválido. Recarga la página e intenta de nuevo.'; }
+else {
     $descripcion = trim($_POST['descripcion'] ?? '');
     if ($descripcion === '') {
         $error = 'La descripción es obligatoria.';
@@ -21,7 +24,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = ($e->errorInfo[1] == 1062) ? 'Esa descripción ya existe.' : 'Error al guardar.';
         }
     }
-}
+
+}}
 
 include '../../includes/header.php';
 ?>
@@ -32,6 +36,7 @@ include '../../includes/header.php';
 <?php if ($success): ?><div class="alert alert-success"><?= $success ?> <a href="listar.php">Ver listado</a></div><?php endif; ?>
 
 <form method="post">
+    <input type="hidden" name="csrf_token" value="<?= generate_csrf_token() ?>">
     <div class="mb-3">
         <label>Descripción <span class="text-danger">*</span></label>
         <input type="text" name="descripcion" class="form-control" value="<?= htmlspecialchars($_POST['descripcion'] ?? '') ?>" required>

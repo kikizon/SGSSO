@@ -22,7 +22,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($rol === 'admin') { $sucursales_sel = []; }
     $primaria = $sucursales_sel[0] ?? null; // compat con usuarios.sucursal_id
 
-    if (!$nombre || !$email || !$password) {
+    if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = 'Token de seguridad inválido. Recarga la página e intenta de nuevo.';
+    } elseif (!$nombre || !$email || !$password) {
         $error = 'Todos los campos obligatorios deben completarse.';
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error = 'Email no válido.';
@@ -32,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $hash = password_hash($password, PASSWORD_DEFAULT);
         $pdo->beginTransaction();
         try {
-            $stmt = $pdo->prepare("INSERT INTO usuarios (nombre_completo, email, password_hash, rol, sucursal_id, activo, debe_cambiar_password, ultimo_cambio_password) 
+            $stmt = $pdo->prepare("INSERT INTO usuarios (nombre_completo, email, password_hash, rol, sucursal_id, activo, password_change_required, password_last_change) 
                                    VALUES (?, ?, ?, ?, ?, ?, ?, NOW())");
             $stmt->execute([$nombre, $email, $hash, $rol, $primaria, $activo, $debe_cambiar]);
             $nuevo_usuario_id = $pdo->lastInsertId();
@@ -68,6 +70,7 @@ include '../../includes/header.php';
 <?php if ($success): ?><div class="alert alert-success"><?= $success ?> <a href="listar.php">Ver listado</a></div><?php endif; ?>
 
 <form method="post" class="row g-3 needs-validation" novalidate>
+    <input type="hidden" name="csrf_token" value="<?= generate_csrf_token() ?>">
     <div class="col-md-6">
         <label for="nombre_completo" class="form-label">Nombre Completo <span class="text-danger">*</span></label>
         <input type="text" name="nombre_completo" id="nombre_completo" class="form-control" value="<?= htmlspecialchars($_POST['nombre_completo'] ?? '') ?>" required>

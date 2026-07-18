@@ -41,7 +41,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($rol === 'admin') { $sucursales_sel = []; }
     $primaria = $sucursales_sel[0] ?? null;
 
-    if (!$nombre || !$email) {
+    if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = 'Token de seguridad inválido. Recarga la página e intenta de nuevo.';
+    } elseif (!$nombre || !$email) {
         $error = 'Nombre y email son obligatorios.';
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error = 'Email no válido.';
@@ -50,10 +52,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $pdo->beginTransaction();
         try {
-            $sql = "UPDATE usuarios SET nombre_completo=?, email=?, rol=?, sucursal_id=?, activo=?, debe_cambiar_password=?";
+            $sql = "UPDATE usuarios SET nombre_completo=?, email=?, rol=?, sucursal_id=?, activo=?, password_change_required=?";
             $params = [$nombre, $email, $rol, $primaria, $activo, $debe_cambiar];
             if (!empty($password)) {
-                $sql .= ", password_hash=?, ultimo_cambio_password=NOW()";
+                $sql .= ", password_hash=?, password_last_change=NOW()";
                 $params[] = password_hash($password, PASSWORD_DEFAULT);
             }
             $sql .= " WHERE id=?";
@@ -99,6 +101,7 @@ include '../../includes/header.php';
 <?php if ($success): ?><div class="alert alert-success"><?= $success ?> <a href="listar.php">Ver listado</a></div><?php endif; ?>
 
 <form method="post" class="row g-3">
+    <input type="hidden" name="csrf_token" value="<?= generate_csrf_token() ?>">
     <div class="col-md-6">
         <label for="nombre_completo" class="form-label">Nombre Completo <span class="text-danger">*</span></label>
         <input type="text" name="nombre_completo" id="nombre_completo" class="form-control" value="<?= htmlspecialchars($usuario['nombre_completo']) ?>" required>
@@ -141,7 +144,7 @@ include '../../includes/header.php';
     </div>
     <div class="col-12">
         <div class="form-check">
-            <input type="checkbox" name="debe_cambiar_password" id="debe_cambiar_password" class="form-check-input" <?= $usuario['debe_cambiar_password'] ? 'checked' : '' ?>>
+            <input type="checkbox" name="debe_cambiar_password" id="debe_cambiar_password" class="form-check-input" <?= $usuario['password_change_required'] ? 'checked' : '' ?>>
             <label for="debe_cambiar_password" class="form-check-label">Forzar cambio de contraseña en el próximo inicio de sesión</label>
         </div>
     </div>

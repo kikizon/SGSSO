@@ -7,7 +7,7 @@ if ($usuario_rol !== 'admin') {
     exit;
 }
 
-$usuarios = $pdo->query("SELECT u.id, u.nombre_completo, u.email, u.rol, u.activo, u.debe_cambiar_password,
+$usuarios = $pdo->query("SELECT u.id, u.nombre_completo, u.email, u.rol, u.activo, u.password_change_required AS debe_cambiar_password,
                                 (SELECT GROUP_CONCAT(s.nombre ORDER BY s.nombre SEPARATOR ', ')
                                  FROM usuario_sucursales us JOIN sucursales s ON s.id = us.sucursal_id
                                  WHERE us.usuario_id = u.id) AS sucursales
