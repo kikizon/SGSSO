@@ -1,5 +1,6 @@
 <?php
 require_once '../../includes/auth.php';
+require_once '../../includes/functions.php';
 if ($usuario_rol !== 'admin') {
     header('Location: ' . BASE_URL . 'modules/dashboard/');
     exit;
@@ -9,6 +10,8 @@ $error = '';
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if (!verify_csrf_token($_POST['csrf_token'] ?? '')) { $error = 'Token de seguridad inválido. Recarga la página e intenta de nuevo.'; }
+else {
     $descripcion = trim($_POST['descripcion'] ?? '');
     $activo = isset($_POST['activo']) ? 1 : 0;
 
@@ -28,7 +31,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
-}
+
+}}
 
 include '../../includes/header.php';
 ?>
@@ -39,6 +43,7 @@ include '../../includes/header.php';
 <?php if ($success): ?><div class="alert alert-success"><?= $success ?> <a href="listar.php">Ver listado</a></div><?php endif; ?>
 
 <form method="post" class="row g-3">
+    <input type="hidden" name="csrf_token" value="<?= generate_csrf_token() ?>">
     <div class="col-12">
         <label for="descripcion" class="form-label">Descripción <span class="text-danger">*</span></label>
         <input type="text" name="descripcion" id="descripcion" class="form-control" value="<?= htmlspecialchars($_POST['descripcion'] ?? '') ?>" required>

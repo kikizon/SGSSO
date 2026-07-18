@@ -1,5 +1,6 @@
 <?php
 require_once '../../includes/auth.php';
+require_once '../../includes/functions.php';
 if ($usuario_rol !== 'admin') {
     header('Location: ' . BASE_URL . 'modules/dashboard/');
     exit;
@@ -12,6 +13,8 @@ $sucursales = $pdo->query("SELECT id, nombre FROM sucursales WHERE activo = 1 OR
 $departamentos = $pdo->query("SELECT id, nombre FROM departamentos WHERE activo = 1 ORDER BY nombre")->fetchAll();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if (!verify_csrf_token($_POST['csrf_token'] ?? '')) { $error = 'Token de seguridad inválido. Recarga la página e intenta de nuevo.'; }
+else {
     $nombre = trim($_POST['nombre'] ?? '');
     $descripcion = trim($_POST['descripcion'] ?? '');
     $curso_sucursal_id = ($_POST['curso_sucursal_id'] ?? '') !== '' ? (int)$_POST['curso_sucursal_id'] : null;
@@ -50,11 +53,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($e->getCode() == 23000) {
                 $error = 'El nombre ya existe.';
             } else {
-                $error = 'Error al guardar: ' . $e->getMessage();
+                error_log($e->getMessage()); $error = 'Ocurrió un error. Intenta de nuevo.';
             }
         }
     }
-}
+
+}}
 
 include '../../includes/header.php';
 ?>
@@ -65,6 +69,7 @@ include '../../includes/header.php';
 <?php if ($success): ?><div class="alert alert-success"><?= htmlspecialchars($success) ?> <a href="listar.php">Ver listado</a></div><?php endif; ?>
 
 <form method="post" id="formCurso">
+    <input type="hidden" name="csrf_token" value="<?= generate_csrf_token() ?>">
     <div class="row">
         <div class="col-md-6">
             <div class="card mb-3">

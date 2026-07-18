@@ -1,5 +1,6 @@
 <?php
 require_once '../../includes/auth.php';
+require_once '../../includes/functions.php';
 if ($usuario_rol !== 'admin') {
     header('Location: ' . BASE_URL . 'modules/dashboard/');
     exit;
@@ -14,7 +15,9 @@ $omitidos = 0;
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['archivo_csv'])) {
     $archivo = $_FILES['archivo_csv'];
 
-    if ($archivo['error'] !== UPLOAD_ERR_OK) {
+    if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+        $errores[] = 'Token de seguridad inválido. Recarga la página e intenta de nuevo.';
+    } elseif ($archivo['error'] !== UPLOAD_ERR_OK) {
         $errores[] = 'Error al subir el archivo.';
     } else {
         $extension = strtolower(pathinfo($archivo['name'], PATHINFO_EXTENSION));
@@ -167,6 +170,7 @@ include '../../includes/header.php';
                 <?php endif; ?>
 
                 <form method="post" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="<?= generate_csrf_token() ?>">
                     <div class="mb-3">
                         <label for="archivo_csv" class="form-label">Seleccione archivo CSV</label>
                         <input type="file" class="form-control" id="archivo_csv" name="archivo_csv" accept=".csv" required>

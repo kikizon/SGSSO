@@ -1,5 +1,6 @@
 <?php
 require_once '../../includes/auth.php';
+require_once '../../includes/functions.php';
 if ($usuario_rol !== 'admin') {
     header('Location: ' . BASE_URL . 'modules/dashboard/');
     exit;
@@ -19,6 +20,8 @@ $error = '';
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if (!verify_csrf_token($_POST['csrf_token'] ?? '')) { $error = 'Token de seguridad inválido. Recarga la página e intenta de nuevo.'; }
+else {
     $nombre = trim($_POST['nombre'] ?? '');
 
     if ($nombre === '') {
@@ -40,7 +43,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
-}
+
+}}
 
 include '../../includes/header.php';
 ?>
@@ -55,6 +59,7 @@ include '../../includes/header.php';
 <?php endif; ?>
 
 <form method="post" class="row g-3">
+    <input type="hidden" name="csrf_token" value="<?= generate_csrf_token() ?>">
     <div class="col-12">
         <label for="nombre" class="form-label">Nombre del Departamento <span class="text-danger">*</span></label>
         <input type="text" name="nombre" id="nombre" class="form-control" value="<?= htmlspecialchars($departamento['nombre']) ?>" required>

@@ -47,7 +47,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $fecha_nacimiento = $_POST['fecha_nacimiento'] ?? '';
     $activo = isset($_POST['activo']) ? 1 : 0;
 
-    if (!$numero || !$nombre || !$departamento_id || !$sucursal_id) {
+    if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = 'Token de seguridad inválido. Recarga la página e intenta de nuevo.';
+    } elseif (!$numero || !$nombre || !$departamento_id || !$sucursal_id) {
         $error = 'Todos los campos obligatorios deben completarse.';
     } else {
         $stmt = $pdo->prepare("UPDATE empleados SET numero_empleado=?, nombre=?, departamento_id=?, sucursal_id=?, fecha_nacimiento=?, activo=? WHERE id=?");
@@ -74,7 +76,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($e->errorInfo[1] == 1062) {
                 $error = 'El número de empleado ya existe.';
             } else {
-                $error = 'Error al actualizar: ' . $e->getMessage();
+                error_log('empleados/editar: ' . $e->getMessage());
+                $error = 'Error al actualizar. Intenta de nuevo.';
             }
         }
     }
@@ -89,6 +92,7 @@ include '../../includes/header.php';
 <?php if ($success): ?><div class="alert alert-success"><?= htmlspecialchars($success) ?> <a href="listar.php">Ver listado</a></div><?php endif; ?>
 
 <form method="post" enctype="multipart/form-data" class="row g-3 needs-validation" novalidate>
+    <input type="hidden" name="csrf_token" value="<?= generate_csrf_token() ?>">
     <div class="col-md-6">
         <label for="numero_empleado" class="form-label">Número de Empleado <span class="text-danger">*</span></label>
         <input type="text" name="numero_empleado" id="numero_empleado" class="form-control" value="<?= htmlspecialchars($empleado['numero_empleado']) ?>" required>

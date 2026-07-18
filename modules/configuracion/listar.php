@@ -19,6 +19,8 @@ $error = '';
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if (!verify_csrf_token($_POST['csrf_token'] ?? '')) { $error = 'Token de seguridad inválido. Recarga la página e intenta de nuevo.'; }
+else {
     $dias = (int)($_POST['password_expira_dias'] ?? 90);
     $horas = (int)($_POST['horas_hombre_mes'] ?? 0);
     $roles = $_POST['roles'] ?? [];
@@ -50,7 +52,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $config['password_expira_dias'] = $dias;
     $config['horas_hombre_mes'] = $horas;
     $config['password_expiracion_roles'] = $roles_str;
-}
+
+}}
 
 $dias_actual = $config['password_expira_dias'] ?? '90';
 $horas_actual = $config['horas_hombre_mes'] ?? '0';
@@ -70,6 +73,7 @@ include '../../includes/header.php';
             <div class="card-header"><i class="fas fa-key"></i> Política de Contraseñas</div>
             <div class="card-body">
                 <form method="post">
+    <input type="hidden" name="csrf_token" value="<?= generate_csrf_token() ?>">
                     <div class="mb-3">
                         <label for="password_expira_dias" class="form-label">Días de vigencia de la contraseña</label>
                         <input type="number" name="password_expira_dias" id="password_expira_dias" class="form-control" min="0" max="365" value="<?= htmlspecialchars($dias_actual) ?>">
