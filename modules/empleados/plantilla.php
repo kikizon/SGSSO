@@ -1,9 +1,6 @@
 <?php
 require_once '../../includes/auth.php';
-if ($usuario_rol !== 'admin') {
-    header('Location: ' . BASE_URL . 'modules/dashboard/');
-    exit;
-}
+exigir('empleados.importar');
 
 $filename = 'plantilla_empleados_supermm_' . date('Ymd') . '.csv';
 

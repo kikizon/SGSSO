@@ -1,6 +1,7 @@
 <?php
 require_once '../../includes/auth.php';
 header('Content-Type: application/json');
+exigir('empleados.alergias.asignar');
 
 if (!isset($usuario_id)) {
     echo json_encode(['success' => false, 'error' => 'No autorizado']);

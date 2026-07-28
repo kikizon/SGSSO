@@ -3,6 +3,7 @@ require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/image_helper.php';
 require_once __DIR__ . '/_semanas.php';
+exigir('6s.realizar');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect('modules/auditoria6s/listar.php'); }
 if (!verify_csrf_token($_POST['csrf_token'] ?? '')) { http_response_code(403); exit('Token CSRF inválido.'); }

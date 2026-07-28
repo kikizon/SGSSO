@@ -2,6 +2,7 @@
 require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
 require_once __DIR__ . '/_semanas.php';
+exigir('6s.realizar');
 
 $es_admin = ($usuario_rol === 'admin');
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;

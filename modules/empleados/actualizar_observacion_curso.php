@@ -1,6 +1,7 @@
 <?php
 require_once '../../includes/auth.php';
 header('Content-Type: application/json');
+exigir('empleados.cursos.marcar');
 
 $empleado_id = $_POST['empleado_id'] ?? 0;
 $curso_id = $_POST['curso_id'] ?? 0;

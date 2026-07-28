@@ -1,6 +1,7 @@
 <?php
 require_once '../../includes/auth.php';
 header('Content-Type: application/json');
+exigir('empleados.enfermedades.editar');
 
 $empleado_id = $_POST['empleado_id'] ?? 0;
 $enfermedad_id = $_POST['enfermedad_id'] ?? 0;

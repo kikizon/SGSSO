@@ -8,6 +8,7 @@ require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
 
 header('Content-Type: application/json; charset=utf-8');
+exigir('reportes.evidencias.eliminar');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);

@@ -4,7 +4,7 @@ require_once '../../includes/functions.php';
 header('Content-Type: application/json; charset=utf-8');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); echo json_encode(['success' => false, 'error' => 'Método no permitido']); exit; }
-if (!in_array($usuario_rol, ['admin', 'supervisor'], true)) { http_response_code(403); echo json_encode(['success' => false, 'error' => 'Sin permisos']); exit; }
+exigir('empleados.notas.agregar');
 
 $empleado_id = (int)($_POST['empleado_id'] ?? 0);
 $nota = trim($_POST['nota'] ?? '');

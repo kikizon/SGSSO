@@ -2,10 +2,7 @@
 require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
 @include_once '../../includes/image_optim.php';
-if ($usuario_rol === 'usuario') {
-    header('Location: ' . BASE_URL . 'modules/dashboard/');
-    exit;
-}
+exigir('empleados.crear');
 
 /** Procesa la foto subida y devuelve el nombre de archivo, o null. */
 function procesar_foto_empleado($file) {

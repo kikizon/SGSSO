@@ -23,10 +23,6 @@
     <?php if ($tipo_filtro == 'accidente'): ?>
         <div class="col-md-2"><div class="card bg-danger text-white h-100 kpi-card"><div class="card-body"><h6 class="card-title">DSA <i class="fas fa-info-circle" data-bs-toggle="tooltip" title="Días Sin Accidentes (histórico)"></i></h6><h2 class="display-6"><?= $dsa ?></h2></div></div></div>
         <div class="col-md-2"><div class="card bg-success text-white h-100 kpi-card"><div class="card-body"><h6 class="card-title">Costo Atenciones <i class="fas fa-info-circle" data-bs-toggle="tooltip" title="Costo total de atenciones particulares en el periodo"></i></h6><h2 class="display-6">$<?= number_format($costoTotalAtenciones, 2) ?></h2></div></div></div>
-        <div class="col-md-2"><div class="card bg-info text-white h-100 kpi-card"><div class="card-body"><h6 class="card-title">% ST7 <i class="fas fa-info-circle" data-bs-toggle="tooltip" title="% de atenciones IMSS clasificadas como ST7"></i></h6><h2 class="display-6"><?= $porcentajeST7 ?>%</h2></div></div></div>
-        <div class="col-md-2"><div class="card bg-warning text-white h-100 kpi-card"><div class="card-body"><h6 class="card-title">Prom. Días Incap. <i class="fas fa-info-circle" data-bs-toggle="tooltip" title="Promedio de días de incapacidad por accidente con incapacidad"></i></h6><h2 class="display-6"><?= $promedioDiasIncapacidad ?></h2></div></div></div>
-        <div class="col-md-2"><div class="card bg-primary text-white h-100 kpi-card"><div class="card-body"><h6 class="card-title">Costo Prom. Atención <i class="fas fa-info-circle" data-bs-toggle="tooltip" title="Costo promedio por atención particular"></i></h6><h2 class="display-6">$<?= number_format($costoPromedioAtencion, 2) ?></h2></div></div></div>
-        <div class="col-md-2"><div class="card bg-danger text-white h-100 kpi-card"><div class="card-body"><h6 class="card-title">Incap. Prolongada <i class="fas fa-info-circle" data-bs-toggle="tooltip" title="% de accidentes con más de 30 días perdidos"></i></h6><h2 class="display-6"><?= $tasaIncapacidadProlongada ?>%</h2></div></div></div>
     <?php endif; ?>
 
 <?php endif; ?>

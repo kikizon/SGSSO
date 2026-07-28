@@ -1,10 +1,7 @@
 <?php
 require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
-if ($usuario_rol !== 'admin') {
-    header('Location: ' . BASE_URL . 'modules/dashboard/');
-    exit;
-}
+exigir('usuarios.editar');
 
 $id = $_GET['id'] ?? 0;
 $stmt = $pdo->prepare("SELECT * FROM usuarios WHERE id = ?");
@@ -16,6 +13,7 @@ if (!$usuario) {
 }
 
 $sucursales = $pdo->query("SELECT id, nombre FROM sucursales WHERE activo = 1 ORDER BY nombre")->fetchAll();
+$roles_disponibles = $pdo->query("SELECT id, nombre, descripcion, es_sistema FROM roles WHERE activo = 1 ORDER BY es_sistema DESC, nombre")->fetchAll();
 
 // Sucursales actualmente asignadas
 $asignadas = [];
@@ -33,7 +31,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $nombre = trim($_POST['nombre_completo'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
-    $rol = $_POST['rol'] ?? 'usuario';
+    // El rol nuevo define los permisos; usuarios.rol se conserva como nivel de alcance
+    $rol_id = (int)($_POST['rol_id'] ?? 0);
+    $rq = $pdo->prepare("SELECT es_sistema FROM roles WHERE id = ? AND activo = 1");
+    $rq->execute([$rol_id]);
+    $es_sistema = $rq->fetchColumn();
+    if ($es_sistema === false) { $rol_id = null; $es_sistema = 0; }
+    $rol = ((int)$es_sistema === 1) ? 'admin' : (($usuario['rol'] !== 'admin') ? $usuario['rol'] : 'usuario');
     $sucursales_sel = array_values(array_unique(array_map('intval', (array)($_POST['sucursales'] ?? []))));
     $activo = isset($_POST['activo']) ? 1 : 0;
     $debe_cambiar = isset($_POST['debe_cambiar_password']) ? 1 : 0;
@@ -52,8 +56,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $pdo->beginTransaction();
         try {
-            $sql = "UPDATE usuarios SET nombre_completo=?, email=?, rol=?, sucursal_id=?, activo=?, password_change_required=?";
-            $params = [$nombre, $email, $rol, $primaria, $activo, $debe_cambiar];
+            $sql = "UPDATE usuarios SET nombre_completo=?, email=?, rol=?, rol_id=?, sucursal_id=?, activo=?, password_change_required=?";
+            $params = [$nombre, $email, $rol, $rol_id, $primaria, $activo, $debe_cambiar];
             if (!empty($password)) {
                 $sql .= ", password_hash=?, password_last_change=NOW()";
                 $params[] = password_hash($password, PASSWORD_DEFAULT);
@@ -117,10 +121,13 @@ include '../../includes/header.php';
     </div>
     <div class="col-md-6">
         <label for="rol" class="form-label">Rol</label>
-        <select name="rol" id="rol" class="form-select" onchange="toggleSucursal()">
-            <option value="usuario" <?= $usuario['rol'] == 'usuario' ? 'selected' : '' ?>>Usuario</option>
-            <option value="supervisor" <?= $usuario['rol'] == 'supervisor' ? 'selected' : '' ?>>Supervisor</option>
-            <option value="admin" <?= $usuario['rol'] == 'admin' ? 'selected' : '' ?>>Administrador</option>
+        <select name="rol_id" id="rol" class="form-select" onchange="toggleSucursal()" required>
+            <?php foreach ($roles_disponibles as $rd): ?>
+                <option value="<?= (int)$rd['id'] ?>" data-sistema="<?= (int)$rd['es_sistema'] ?>"
+                    <?= ((int)($usuario['rol_id'] ?? 0) === (int)$rd['id']) ? 'selected' : '' ?>>
+                    <?= htmlspecialchars($rd['nombre']) ?><?= $rd['es_sistema'] ? ' (acceso total)' : '' ?>
+                </option>
+            <?php endforeach; ?>
         </select>
     </div>
     <div class="col-md-6" id="div_sucursal">
@@ -156,7 +163,8 @@ include '../../includes/header.php';
 
 <script>
 function toggleSucursal() {
-    const rol = document.getElementById('rol').value;
+    const sel = document.getElementById('rol');
+    const rol = sel.options[sel.selectedIndex] && sel.options[sel.selectedIndex].dataset.sistema === '1' ? 'admin' : 'otro';
     const div = document.getElementById('div_sucursal');
     const req = document.getElementById('sucursal_required');
     if (rol === 'admin') {

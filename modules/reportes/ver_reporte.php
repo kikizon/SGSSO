@@ -1,6 +1,7 @@
 <?php
 require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
+exigir('reportes.ver');
 
 $id = $_GET['id'] ?? 0;
 if (!$id) {

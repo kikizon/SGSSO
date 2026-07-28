@@ -2,6 +2,7 @@
 require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/image_helper.php';
+exigir('reportes.crear');
 
 $tipo_seleccionado = $_GET['tipo'] ?? 'acto_inseguro';
 if (!in_array($tipo_seleccionado, ['acto_inseguro', 'accidente'])) {

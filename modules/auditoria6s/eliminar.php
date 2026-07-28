@@ -8,11 +8,10 @@
 require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/authorization.php';
+require_once '../../includes/papelera.php';
 
+exigir('6s.eliminar');
 $es_admin = ($usuario_rol === 'admin');
-if (!$es_admin && $usuario_rol !== 'supervisor') {
-    redirect('modules/auditoria6s/listar.php');
-}
 
 $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 if (!$id) { redirect('modules/auditoria6s/listar.php'); }
@@ -33,7 +32,7 @@ if (autz_hay_pendiente($pdo, 'auditorias_6s', $id)) {
 }
 
 // Supervisor: solicitar (no borra)
-if (!$es_admin) {
+if (!puede('6s.eliminar.directo')) {
     autz_crear_solicitud(
         $pdo, $usuario_id, 'auditorias_6s', $id, 'DELETE', null,
         'Eliminación de auditoría 6S #' . $id, (int) $aud['sucursal_id']
@@ -41,17 +40,8 @@ if (!$es_admin) {
     redirect('modules/auditoria6s/listar.php?msg=' . urlencode('Solicitud de eliminación enviada para autorización.'));
 }
 
-// Admin: eliminación directa
-// Borrar archivos físicos de evidencias
-$ev = $pdo->prepare("SELECT e.nombre_archivo
-                     FROM auditorias_6s_evidencias e
-                     JOIN auditorias_6s_respuestas r ON r.id = e.respuesta_id
-                     WHERE r.auditoria_id = ?");
-$ev->execute([$id]);
-foreach ($ev->fetchAll() as $f) {
-    $ruta = UPLOAD_DIR . $f['nombre_archivo'];
-    if (is_file($ruta)) { @unlink($ruta); }
-}
+// Admin: eliminación directa -> a la papelera (conserva archivos hasta purgar)
+papelera_snapshot($pdo, 'auditorias_6s', $id, $usuario_id);
 
 registrar_auditoria($pdo, $usuario_id, 'DELETE', 'auditorias_6s', $id, json_encode([
     'sucursal_id' => $aud['sucursal_id'], 'departamento_id' => $aud['departamento_id'], 'fecha' => $aud['fecha']
@@ -59,4 +49,4 @@ registrar_auditoria($pdo, $usuario_id, 'DELETE', 'auditorias_6s', $id, json_enco
 
 $pdo->prepare("DELETE FROM auditorias_6s WHERE id = ?")->execute([$id]);
 
-redirect('modules/auditoria6s/listar.php?msg=deleted');
+redirect('modules/auditoria6s/listar.php?msg=' . urlencode('Auditoría enviada a la papelera.'));

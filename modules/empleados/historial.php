@@ -1,5 +1,6 @@
 <?php
 require_once '../../includes/auth.php';
+exigir('empleados.historial.ver');
 if (!isset($usuario_id)) {
     http_response_code(403);
     exit;

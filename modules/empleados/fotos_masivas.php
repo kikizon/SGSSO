@@ -3,10 +3,7 @@ require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
 @include_once '../../includes/image_optim.php';
 
-if ($usuario_rol !== 'admin') {
-    header('Location: ' . BASE_URL . 'modules/dashboard/');
-    exit;
-}
+exigir('empleados.fotos_masivas');
 
 /** Tokeniza y normaliza (minúsculas, sin acentos, sin signos). Devuelve tokens ordenados. */
 function fm_tokens($s) {

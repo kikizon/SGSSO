@@ -1,9 +1,6 @@
 <?php
 require_once '../../includes/auth.php';
-if ($usuario_rol === 'usuario') {
-    header('Location: ' . BASE_URL . 'modules/dashboard/');
-    exit;
-}
+exigir('empleados.ver');
 
 // Configuración de paginación
 $registros_por_pagina = isset($_SESSION['empleados_por_pagina']) ? $_SESSION['empleados_por_pagina'] : 20;

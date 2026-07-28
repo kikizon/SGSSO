@@ -1,5 +1,6 @@
 <?php
 require_once '../../includes/auth.php';
+exigir('reportes.ver');
 $reporte_id = $_GET['id'] ?? 0;
 $evidencias = $pdo->prepare("SELECT * FROM reportes_evidencias WHERE reporte_id = ?");
 $evidencias->execute([$reporte_id]);

@@ -8,6 +8,8 @@
 require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/authorization.php';
+require_once '../../includes/papelera.php';
+exigir('reportes.eliminar');
 
 $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 if (!$id) { redirect('modules/reportes/listar.php'); }
@@ -28,7 +30,7 @@ if (autz_hay_pendiente($pdo, 'reportes', $id)) {
 }
 
 // usuario / supervisor: solicitar (no borra)
-if (autz_requiere_autorizacion($usuario_rol)) {
+if (autz_requiere_autorizacion('reportes.eliminar.directo')) {
     autz_crear_solicitud(
         $pdo, $usuario_id, 'reportes', $id, 'DELETE', null,
         'Eliminación de reporte #' . $id, (int) $reporte['sucursal_id']
@@ -36,29 +38,15 @@ if (autz_requiere_autorizacion($usuario_rol)) {
     redirect('modules/reportes/listar.php?msg=' . urlencode('Solicitud de eliminación enviada para autorización.'));
 }
 
-// admin: eliminación directa
-// 1) Evidencias (archivos + filas)
-$ev = $pdo->prepare("SELECT nombre_archivo FROM reportes_evidencias WHERE reporte_id = ?");
-$ev->execute([$id]);
-foreach ($ev->fetchAll() as $row) {
-    $ruta = UPLOAD_DIR . $row['nombre_archivo'];
-    if (is_file($ruta)) { @unlink($ruta); }
-}
-$pdo->prepare("DELETE FROM reportes_evidencias WHERE reporte_id = ?")->execute([$id]);
+// admin: eliminación directa -> a la papelera (conserva archivos hasta purgar)
+papelera_snapshot($pdo, 'reportes', $id, $usuario_id);
 
-// 2) Documentos firmados (archivos; las filas caen por ON DELETE CASCADE)
-$ff = $pdo->prepare("SELECT nombre_archivo FROM reportes_firmados WHERE reporte_id = ?");
-$ff->execute([$id]);
-foreach ($ff->fetchAll() as $row) {
-    $ruta = UPLOAD_DIR . $row['nombre_archivo'];
-    if (is_file($ruta)) { @unlink($ruta); }
-}
-
-// 3) Auditoría + borrado de la cabecera
+// Auditoría + borrado de filas (los archivos quedan para la papelera)
 registrar_auditoria($pdo, $usuario_id, 'DELETE', 'reportes', $id, json_encode([
     'tipo' => $reporte['tipo'], 'empleado_id' => $reporte['empleado_id'], 'fecha' => $reporte['fecha'],
 ], JSON_UNESCAPED_UNICODE));
 
+$pdo->prepare("DELETE FROM reportes_evidencias WHERE reporte_id = ?")->execute([$id]);
 $pdo->prepare("DELETE FROM reportes WHERE id = ?")->execute([$id]);
 
-redirect('modules/reportes/listar.php?msg=' . urlencode('Reporte eliminado.'));
+redirect('modules/reportes/listar.php?msg=' . urlencode('Reporte enviado a la papelera.'));

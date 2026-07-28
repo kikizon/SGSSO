@@ -1,11 +1,12 @@
 <?php
 require_once '../../includes/auth.php';
+exigir('empleados.notas.ver');
 if (!isset($usuario_id)) { http_response_code(403); exit; }
 
 $empleado_id = (int)($_GET['id'] ?? 0);
 if (!$empleado_id) { echo '<div class="alert alert-danger">ID no válido.</div>'; exit; }
 
-$puede = in_array($usuario_rol, ['admin', 'supervisor'], true);
+$puede = puede('empleados.notas.agregar');
 
 $st = $pdo->prepare("SELECT * FROM empleado_notas WHERE empleado_id = ? ORDER BY creado_en DESC, id DESC");
 $st->execute([$empleado_id]);

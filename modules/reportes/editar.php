@@ -58,7 +58,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // === Doble autorización: usuario/supervisor solicitan; admin edita directo ===
     require_once '../../includes/authorization.php';
-    if ($usuario_rol !== 'admin') 
+exigir('reportes.editar');
+    if (!puede('reportes.editar.directo')) 
     {
         if (autz_hay_pendiente($pdo, 'reportes', (int)$id)) {
             redirect('modules/reportes/ver_reporte.php?id=' . (int)$id . '&err=' . urlencode('Ya hay una solicitud pendiente para este reporte.'));
@@ -148,7 +149,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } catch (Exception $e) {
             $pdo->rollBack();
-            $error = 'Error al actualizar: ' . $e->getMessage();
+            error_log('reportes/editar: ' . $e->getMessage());
+            $error = 'Error al actualizar. Intenta de nuevo.';
         }
     }
 }

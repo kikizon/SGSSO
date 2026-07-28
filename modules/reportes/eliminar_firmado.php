@@ -2,6 +2,7 @@
 /** Elimina un documento firmado de un reporte. PRG + CSRF. */
 require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
+exigir('reportes.firmados.eliminar');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect('modules/reportes/listar.php');

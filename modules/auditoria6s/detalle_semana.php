@@ -8,6 +8,7 @@
 require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
 require_once __DIR__ . '/_semanas.php';
+exigir('6s.ver');
 
 $es_admin = ($usuario_rol === 'admin');
 function color_6s($p) {

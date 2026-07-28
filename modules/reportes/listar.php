@@ -1,6 +1,7 @@
 <?php
 require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
+exigir('reportes.ver');
 
 // Filtros
 $tipo_filtro = $_GET['tipo'] ?? 'acto_inseguro';

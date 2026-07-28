@@ -9,6 +9,7 @@
 require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
 require_once '../../vendor/autoload.php';
+exigir('reportes.pdf');
 
 use Dompdf\Dompdf;
 use Dompdf\Options;

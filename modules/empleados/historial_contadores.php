@@ -1,6 +1,7 @@
 <?php
 require_once '../../includes/auth.php';
 header('Content-Type: application/json');
+exigir('empleados.historial.ver');
 
 $empleado_id = $_GET['id'] ?? 0;
 if (!$empleado_id) {

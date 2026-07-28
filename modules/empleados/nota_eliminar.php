@@ -4,7 +4,7 @@ require_once '../../includes/functions.php';
 header('Content-Type: application/json; charset=utf-8');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); echo json_encode(['success' => false, 'error' => 'Método no permitido']); exit; }
-if (!in_array($usuario_rol, ['admin', 'supervisor'], true)) { http_response_code(403); echo json_encode(['success' => false, 'error' => 'Sin permisos']); exit; }
+exigir('empleados.notas.eliminar');
 
 $nota_id = (int)($_POST['nota_id'] ?? 0);
 if (!$nota_id) { echo json_encode(['success' => false, 'error' => 'Nota inválida']); exit; }

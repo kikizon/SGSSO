@@ -1,10 +1,7 @@
 <?php
 require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
-
-if ($usuario_rol !== 'admin') {
-    redirect('modules/auditoria6s/listar.php');
-}
+exigir('6s.criterios.gestionar');
 
 $msg = '';
 $error = '';

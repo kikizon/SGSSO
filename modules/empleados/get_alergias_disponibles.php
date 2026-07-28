@@ -1,6 +1,7 @@
 <?php
 require_once '../../includes/auth.php';
 header('Content-Type: application/json');
+exigir('empleados.alergias.asignar');
 
 $empleado_id = $_GET['empleado_id'] ?? 0;
 if (!$empleado_id) {

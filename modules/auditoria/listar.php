@@ -1,9 +1,6 @@
 <?php
 require_once '../../includes/auth.php';
-if ($usuario_rol !== 'admin') {
-    header('Location: ' . BASE_URL . 'modules/dashboard/');
-    exit;
-}
+exigir('bitacora.ver');
 
 // Filtros
 $fecha_desde = $_GET['fecha_desde'] ?? '';

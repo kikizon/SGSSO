@@ -2,6 +2,7 @@
 require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
 require_once __DIR__ . '/_semanas.php';
+exigir('6s.tendencias');
 
 function color_6s($p) {
     if ($p === null || $p === '') return 'secondary';

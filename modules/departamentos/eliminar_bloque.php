@@ -7,7 +7,7 @@
 require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
 
-if ($usuario_rol !== 'admin') { redirect('modules/dashboard/'); }
+exigir('departamentos.eliminar_bloque');
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect('modules/departamentos/listar.php'); }
 if (!verify_csrf_token($_POST['csrf_token'] ?? '')) { http_response_code(403); exit('Token CSRF inválido.'); }
 

@@ -1,5 +1,6 @@
 <?php
 require_once '../../includes/auth.php';
+exigir('empleados.historial.ver');
 if (!isset($usuario_id)) exit;
 
 $empleado_id = $_GET['id'] ?? 0;

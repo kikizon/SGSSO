@@ -2,12 +2,10 @@
 require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/authorization.php';
-if ($usuario_rol !== 'admin') {
-    header('Location: ' . BASE_URL . 'modules/dashboard/');
-    exit;
-}
+exigir('usuarios.ver');
 
-$usuarios = $pdo->query("SELECT u.id, u.nombre_completo, u.email, u.rol, u.activo, u.password_change_required AS debe_cambiar_password,
+$usuarios = $pdo->query("SELECT u.id, u.nombre_completo, u.email, u.rol, u.rol_id, u.activo, u.password_change_required AS debe_cambiar_password,
+                                (SELECT r.nombre FROM roles r WHERE r.id = u.rol_id) AS rol_nombre,
                                 (SELECT GROUP_CONCAT(s.nombre ORDER BY s.nombre SEPARATOR ', ')
                                  FROM usuario_sucursales us JOIN sucursales s ON s.id = us.sucursal_id
                                  WHERE us.usuario_id = u.id) AS sucursales
@@ -23,6 +21,9 @@ include '../../includes/header.php';
 
 <div class="d-flex gap-2 mb-3">
   <a href="crear.php" class="btn btn-primary"><i class="fas fa-plus"></i> Nuevo Usuario</a>
+  <?php if (puede('roles.gestionar')): ?>
+  <a href="<?= BASE_URL ?>modules/roles/listar.php" class="btn btn-outline-primary"><i class="fas fa-user-shield"></i> Roles y permisos</a>
+  <?php endif; ?>
   <a href="<?= BASE_URL ?>modules/autorizaciones/listar.php" class="btn btn-outline-secondary">
     <i class="fas fa-user-shield"></i> Autorizaciones
     <?php if ($pendientes > 0): ?><span class="badge bg-danger"><?= $pendientes ?></span><?php endif; ?>
@@ -105,7 +106,13 @@ include '../../includes/header.php';
             <tr>
                 <td><?= htmlspecialchars($u['nombre_completo']) ?></td>
                 <td><?= htmlspecialchars($u['email']) ?></td>
-                <td><?= $u['rol'] === 'admin' ? '<span class="badge bg-danger">Admin</span>' : ($u['rol'] === 'supervisor' ? '<span class="badge bg-warning text-dark">Supervisor</span>' : '<span class="badge bg-secondary">Usuario</span>') ?></td>
+                <td>
+                    <?php if (!empty($u['rol_nombre'])): ?>
+                        <span class="badge <?= $u['rol'] === 'admin' ? 'bg-danger' : 'bg-primary' ?>"><?= htmlspecialchars($u['rol_nombre']) ?></span>
+                    <?php else: ?>
+                        <span class="badge bg-secondary"><?= htmlspecialchars($u['rol']) ?></span>
+                    <?php endif; ?>
+                </td>
                 <td>
                     <?php if (!empty($u['sucursales'])): ?>
                         <?php foreach (explode(', ', $u['sucursales']) as $sn): ?><span class="badge bg-light text-dark border me-1"><?= htmlspecialchars($sn) ?></span><?php endforeach; ?>
@@ -115,6 +122,9 @@ include '../../includes/header.php';
                 <td><?= $u['debe_cambiar_password'] ? '<span class="badge bg-warning text-dark">Sí</span>' : '<span class="badge bg-success">No</span>' ?></td>
                 <td>
                     <a href="editar.php?id=<?= $u['id'] ?>" class="btn btn-sm btn-warning"><i class="fas fa-edit"></i></a>
+                    <?php if (puede('usuarios.permisos_individuales')): ?>
+                    <a href="permisos.php?id=<?= $u['id'] ?>" class="btn btn-sm btn-outline-dark" title="Permisos individuales"><i class="fas fa-user-lock"></i></a>
+                    <?php endif; ?>
                     <?php if ($u['id'] != $usuario_id): ?>
                     <a href="eliminar.php?id=<?= $u['id'] ?>" class="btn btn-sm btn-danger" onclick="return confirm('¿Eliminar usuario?')"><i class="fas fa-trash"></i></a>
                     <?php endif; ?>

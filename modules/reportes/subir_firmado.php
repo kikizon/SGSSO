@@ -6,6 +6,7 @@
 require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/image_optim.php';
+exigir('reportes.firmados.subir');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect('modules/reportes/listar.php');
