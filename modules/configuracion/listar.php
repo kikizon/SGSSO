@@ -2,10 +2,7 @@
 require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
 
-if ($usuario_rol !== 'admin') {
-    header('Location: ' . BASE_URL . 'modules/dashboard/');
-    exit;
-}
+exigir('configuracion.ver');
 
 // Obtener configuración actual
 $stmt = $pdo->prepare("SELECT * FROM configuracion WHERE clave IN ('password_expira_dias', 'password_expiracion_roles', 'horas_hombre_mes')");
@@ -19,6 +16,7 @@ $error = '';
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+exigir('configuracion.editar');
 if (!verify_csrf_token($_POST['csrf_token'] ?? '')) { $error = 'Token de seguridad inválido. Recarga la página e intenta de nuevo.'; }
 else {
     $dias = (int)($_POST['password_expira_dias'] ?? 90);

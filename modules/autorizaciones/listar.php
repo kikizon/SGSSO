@@ -2,8 +2,9 @@
 require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/authorization.php';
+exigir('autorizaciones.ver');
 
-$es_admin = autz_puede_autorizar($usuario_rol);
+$es_admin = puede('autorizaciones.aprobar');
 
 $msg = $_GET['msg'] ?? '';
 $err = $_GET['err'] ?? '';

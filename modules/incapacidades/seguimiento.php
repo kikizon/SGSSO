@@ -3,9 +3,7 @@ require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
 require_once __DIR__ . '/_inc.php';
 
-if ($usuario_rol !== 'admin' && $usuario_rol !== 'supervisor') {
-    redirect('modules/dashboard/');
-}
+exigir('incapacidades.ver');
 
 $reporte_id = isset($_GET['reporte_id']) ? (int) $_GET['reporte_id'] : 0;
 if (!$reporte_id) { redirect('modules/incapacidades/listar.php'); }

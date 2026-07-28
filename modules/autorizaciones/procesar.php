@@ -2,6 +2,7 @@
 require_once '../../includes/auth.php';
 require_once '../../includes/functions.php';
 require_once '../../includes/authorization.php';
+exigir('autorizaciones.aprobar');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect('modules/autorizaciones/listar.php');
@@ -11,9 +12,6 @@ if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
     exit('Token CSRF inválido.');
 }
 // Solo administradores pueden resolver solicitudes
-if (!autz_puede_autorizar($usuario_rol)) {
-    redirect('modules/autorizaciones/listar.php?err=' . urlencode('No tienes permiso para autorizar.'));
-}
 
 $accion       = $_POST['accion'] ?? '';
 $solicitud_id = (int) ($_POST['solicitud_id'] ?? 0);

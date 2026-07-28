@@ -1,9 +1,6 @@
 <?php
 require_once '../../includes/auth.php';
-if ($usuario_rol !== 'admin') {
-    header('Location: ' . BASE_URL . 'modules/dashboard/');
-    exit;
-}
+exigir('enfermedades.importar');
 
 $filename = 'plantilla_enfermedades_empleados_' . date('Ymd') . '.csv';
 

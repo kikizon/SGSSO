@@ -4,9 +4,7 @@ require_once '../../includes/functions.php';
 require_once __DIR__ . '/_inc.php';
 
 // Acceso: admin y supervisor
-if ($usuario_rol !== 'admin' && $usuario_rol !== 'supervisor') {
-    redirect('modules/dashboard/');
-}
+exigir('incapacidades.ver');
 $es_admin = ($usuario_rol === 'admin');
 
 $msg = $_GET['msg'] ?? '';

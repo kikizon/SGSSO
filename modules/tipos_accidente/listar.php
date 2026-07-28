@@ -1,9 +1,6 @@
 <?php
 require_once '../../includes/auth.php';
-if ($usuario_rol !== 'admin') {
-    header('Location: ' . BASE_URL . 'modules/dashboard/');
-    exit;
-}
+exigir('tipos_accidente.ver');
 
 // Filtro de estado (por defecto solo activos)
 $estado = $_GET['estado'] ?? '1';

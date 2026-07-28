@@ -1,5 +1,6 @@
 <?php
 require_once '../../includes/auth.php';
+exigir('cursos.cobertura.ver');
 if (!isset($usuario_id)) {
     http_response_code(403);
     exit;
