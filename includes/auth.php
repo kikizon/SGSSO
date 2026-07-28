@@ -51,6 +51,28 @@ if ($usuario_rol === 'supervisor' && count($usuario_sucursales) === 1) {
     $_POST['sucursal_id'] = $usuario_sucursales[0];
 }
 
+// --- Permisos granulares del usuario ---
+require_once __DIR__ . '/permisos.php';
+$PERMISOS_USUARIO = permisos_cargar($pdo, (int)$usuario_id, (string)$usuario_rol);
+$es_admin = ($usuario_rol === 'admin');
+
+// --- Alcance: ¿este usuario ve TODAS las sucursales? (Fase 6) ---
+// Los 73 puntos que filtran por sucursal preguntan por \$usuario_rol === 'admin'.
+// A partir de aquí ese valor significa únicamente eso: alcance global.
+$usuario_ve_todas_sucursales = ($usuario_rol === 'admin');
+try {
+    $qv = $pdo->prepare("SELECT r.es_sistema, r.ve_todas_sucursales FROM usuarios u JOIN roles r ON r.id = u.rol_id WHERE u.id = ?");
+    $qv->execute([$usuario_id]);
+    if ($rv = $qv->fetch()) {
+        $usuario_ve_todas_sucursales = ((int)$rv['es_sistema'] === 1) || ((int)$rv['ve_todas_sucursales'] === 1);
+    }
+} catch (Throwable $e) {
+    error_log('alcance de sucursales: ' . $e->getMessage());   // se conserva el valor heredado
+}
+if (PERMISOS_FUENTE === 'bd') {
+    $usuario_rol = $usuario_ve_todas_sucursales ? 'admin' : (($usuario_rol === 'admin') ? 'usuario' : $usuario_rol);
+}
+
 // --- Verificar si debe cambiar contraseña (primer login o expiración) ---
 $debe_cambiar = $usuario['password_change_required'] == 1;
 

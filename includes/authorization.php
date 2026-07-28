@@ -19,14 +19,18 @@ require_once __DIR__ . '/functions.php';
  * REGLAS DE ROL
  * ---------------------------------------------------------- */
 
-/** ¿Este rol debe pasar por autorización para editar/eliminar? */
-function autz_requiere_autorizacion(string $rol): bool {
-    return in_array($rol, ['usuario', 'supervisor'], true);
+/**
+ * ¿Esta acción debe pasar por autorización?
+ * Se responde con el permiso '<modulo>.<accion>.directo': quien lo tiene ejecuta
+ * de inmediato; quien no, genera una solicitud.
+ */
+function autz_requiere_autorizacion(string $permiso_directo): bool {
+    return !puede($permiso_directo);
 }
 
-/** ¿Este rol puede aprobar/rechazar solicitudes? (solo admin) */
-function autz_puede_autorizar(string $rol): bool {
-    return $rol === 'admin';
+/** ¿Puede aprobar o rechazar solicitudes? */
+function autz_puede_autorizar(string $rol = ''): bool {
+    return puede('autorizaciones.aprobar');
 }
 
 /* ------------------------------------------------------------
