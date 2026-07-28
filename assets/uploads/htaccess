@@ -1,0 +1,28 @@
+# Seguridad de la carpeta de subidas: NO ejecutar scripts aquí.
+
+# 1) Apagar el motor PHP si el servidor usa mod_php (se ignora bajo PHP-FPM)
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php8.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+
+# 2) Denegar el acceso a cualquier script (defensa principal, sirve también con PHP-FPM)
+<FilesMatch "\.(php|php3|php4|php5|php7|php8|phtml|pht|phar|cgi|pl|py|sh|asp|aspx|jsp|htaccess)$">
+    Require all denied
+</FilesMatch>
+
+# 3) Forzar que cualquier .php se sirva como texto plano (defensa en profundidad)
+AddType text/plain .php .php3 .php4 .php5 .php7 .php8 .phtml .pht .phar
+
+# 4) Solo permitir ver imágenes y PDF
+<FilesMatch "\.(jpe?g|png|gif|webp|pdf)$">
+    Require all granted
+</FilesMatch>
+
+# 5) Sin ejecución CGI ni listado de directorio
+Options -ExecCGI -Indexes

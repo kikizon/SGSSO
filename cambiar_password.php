@@ -13,8 +13,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $new_password = $_POST['new_password'] ?? '';
     $confirm_password = $_POST['confirm_password'] ?? '';
 
-    if (strlen($new_password) < 6) {
-        $error = 'La contraseña debe tener al menos 6 caracteres.';
+    if (strlen($new_password) < 8) {
+        $error = 'La contraseña debe tener al menos 8 caracteres.';
+    } elseif (!preg_match('/[A-Z]/', $new_password) || !preg_match('/[a-z]/', $new_password) || !preg_match('/[0-9]/', $new_password)) {
+        $error = 'La contraseña debe incluir al menos una mayúscula, una minúscula y un número.';
     } elseif ($new_password !== $confirm_password) {
         $error = 'Las contraseñas no coinciden.';
     } else {
@@ -52,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <form method="post">
                         <div class="mb-3">
                             <label for="new_password" class="form-label">Nueva Contraseña</label>
-                            <input type="password" class="form-control" id="new_password" name="new_password" required minlength="6">
+                            <input type="password" class="form-control" id="new_password" name="new_password" required minlength="8">
                         </div>
                         <div class="mb-3">
                             <label for="confirm_password" class="form-label">Confirmar Contraseña</label>

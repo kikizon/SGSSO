@@ -2,17 +2,33 @@
 require_once 'includes/config.php';
 require_once 'includes/functions.php';
 
+// Cabeceras de seguridad
+if (!headers_sent()) {
+    header('X-Frame-Options: SAMEORIGIN');
+    header('X-Content-Type-Options: nosniff');
+    header('Referrer-Policy: strict-origin-when-cross-origin');
+}
+
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
 
     if ($email && $password) {
+        $MAX_INTENTOS = 5; $BLOQUEO_MIN = 15;
+        $bl = $pdo->prepare("SELECT bloqueado_hasta FROM intentos_login WHERE email = ?");
+        $bl->execute([$email]);
+        $reg = $bl->fetch();
+        if ($reg && $reg['bloqueado_hasta'] && strtotime($reg['bloqueado_hasta']) > time()) {
+            $restan = (int)ceil((strtotime($reg['bloqueado_hasta']) - time()) / 60);
+            $error = "Demasiados intentos. Intenta de nuevo en {$restan} minuto(s).";
+        } else {
         $stmt = $pdo->prepare("SELECT id, nombre_completo, password_hash, rol, sucursal_id FROM usuarios WHERE email = ? AND activo = 1");
         $stmt->execute([$email]);
         $user = $stmt->fetch();
 
         if ($user && password_verify($password, $user['password_hash'])) {
+            $pdo->prepare("DELETE FROM intentos_login WHERE email = ?")->execute([$email]);
             session_regenerate_id(true);
             $_SESSION['usuario_id'] = $user['id'];
             $_SESSION['usuario_nombre'] = $user['nombre_completo'];
@@ -24,7 +40,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: modules/dashboard/');
             exit;
         } else {
-            $error = 'Credenciales incorrectas o usuario inactivo.';
+            $pdo->prepare("INSERT INTO intentos_login (email, intentos, ultimo) VALUES (?, 1, NOW()) ON DUPLICATE KEY UPDATE intentos = intentos + 1, ultimo = NOW()")->execute([$email]);
+            $c = $pdo->prepare("SELECT intentos FROM intentos_login WHERE email = ?");
+            $c->execute([$email]);
+            if ((int)$c->fetchColumn() >= $MAX_INTENTOS) {
+                $pdo->prepare("UPDATE intentos_login SET bloqueado_hasta = DATE_ADD(NOW(), INTERVAL ? MINUTE), intentos = 0 WHERE email = ?")->execute([$BLOQUEO_MIN, $email]);
+                $error = "Demasiados intentos. Cuenta bloqueada por {$BLOQUEO_MIN} minutos.";
+            } else {
+                $error = 'Credenciales incorrectas o usuario inactivo.';
+            }
+        }
         }
     } else {
         $error = 'Por favor complete todos los campos.';
